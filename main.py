@@ -13,7 +13,7 @@ from moderngl import Uniform
 import time
 import trimesh
 import utility
-
+import transformations as transf
 
 class RayMarchingWindow(BasicWindow):
     gl_version = (4, 3)
@@ -23,19 +23,18 @@ class RayMarchingWindow(BasicWindow):
         
         super().__init__(**kwargs)
 
-        self.prog = self.ctx.program(
-            vertex_shader= open("shader.vert", "r").read(),
+        self.miniTrisProg = self.ctx.program(
+            vertex_shader=open("basic.vert", "r").read(),
             geometry_shader=open("miniTris.geom", "r").read(),
-            fragment_shader='''
-                #version 330
-                out vec4 f_color;
-                void main() {
-                    f_color = vec4(0.3, 0.5, 1.0, 1.0);
-                }
-            ''',
+            fragment_shader=open("basic.frag", "r").read(),
         )
         #self.vao = self.ctx.vertex_array(self.prog, [])
 
+        self.basicProg = self.ctx.program(
+            vertex_shader=open("basic.vert", "r").read(),
+            geometry_shader=open("miniTris.geom", "r").read(),
+            fragment_shader=open("basic.frag", "r").read(),
+        )
         
         self.back_color = (0, 0.3, 0.9, 1.0) #(1,1,1, 1)
         st = time.time()
@@ -44,8 +43,13 @@ class RayMarchingWindow(BasicWindow):
 
         vertices = np.array(self.obj_mesh.vertices, dtype='f4')
         bbox = utility.bounding_box(vertices) # Makes bounding box
-        self.prog['bbox.min'].value = bbox[0]
-        self.prog['bbox.max'].value = bbox[1]
+        self.miniTrisProg['bbox.min'].value = bbox[0]
+        self.miniTrisProg['bbox.max'].value = bbox[1]
+        print(tuple(transf.compose_matrix(angles=(0, np.pi/2, 0)).ravel()))
+        #exit()
+        self.miniTrisProg['model'].value = tuple(transf.compose_matrix(angles=(0, np.pi/2, 0)).ravel())
+        self.miniTrisProg['view'].value = tuple(transf.identity_matrix().ravel())
+        self.miniTrisProg['proj'].value = tuple(transf.identity_matrix().ravel())
 
 
         indices = np.array(self.obj_mesh.faces)
@@ -83,7 +87,7 @@ class RayMarchingWindow(BasicWindow):
 
         print(self.vbo)
         self.vao = self.ctx.vertex_array(
-            self.prog, 
+            self.miniTrisProg, 
             [
                 (self.vbo, '3f', 'inVert'),
             ]
@@ -114,6 +118,8 @@ class RayMarchingWindow(BasicWindow):
         self.ctx.clear(1.0, 1.0, 1.0)
         #self.vao.render(mode=moderngl.POINTS, vertices=100, instances=2)
         self.vao.render(mode=moderngl.POINTS)
+        self.miniTrisProg['model'].value = tuple(transf.compose_matrix(angles=(0, np.pi/2 * run_time/4, 0)).ravel())
+
         
 
 if __name__ == '__main__':
