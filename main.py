@@ -12,6 +12,7 @@ from window_setup import BasicWindow  # imports moderngl_window
 from moderngl import Uniform
 import time
 import trimesh
+import utility
 
 
 class RayMarchingWindow(BasicWindow):
@@ -23,33 +24,8 @@ class RayMarchingWindow(BasicWindow):
         super().__init__(**kwargs)
 
         self.prog = self.ctx.program(
-            vertex_shader='''
-                #version 330
-                //out int inst;
-                in vec3 inVert;
-                void main() {
-                    gl_Position = vec4(inVert, 0.0);
-                }
-            ''',
-            geometry_shader='''
-                #version 330
-                layout (points) in;
-                layout (triangle_strip, max_vertices = 3) out;
-                in int inst[1];
-                void main() {
-                    float x = gl_in[0].gl_Position.x/10.0;
-                    float y = gl_in[0].gl_Position.y/10.0 - 0.5;
-                    //float x = float(gl_PrimitiveIDIn / 10) / 9 - 0.5 + inst[0] / 20.0;
-                    //float y = float(gl_PrimitiveIDIn % 10) / 9 - 0.5 + inst[0] / 20.0;
-                    gl_Position = vec4(x - 0.005, y - 0.005, 0.0, 1.0);
-                    EmitVertex();
-                    gl_Position = vec4(x + 0.005, y - 0.005, 0.0, 1.0);
-                    EmitVertex();
-                    gl_Position = vec4(x, y + 0.005, 0.0, 1.0);
-                    EmitVertex();
-                    EndPrimitive();
-                }
-            ''',
+            vertex_shader= open("shader.vert", "r").read(),
+            geometry_shader=open("miniTris.geom", "r").read(),
             fragment_shader='''
                 #version 330
                 out vec4 f_color;
@@ -65,25 +41,17 @@ class RayMarchingWindow(BasicWindow):
         st = time.time()
         self.obj_mesh = trimesh.load("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj", file_type='obj', force="mesh")
         print("Loading took {:.2f} s".format(time.time()-st))
-        '''print(self.obj_mesh.faces[:10])
-        print(max([max(face_inds) for face_inds in self.obj_mesh.faces]))
-        print(len(self.obj_mesh.vertices))
-        '''
-        
-        # Find max x, y, z
-        # Find min x, y, z
-        # Shrink vertices into the range -1 -> 1
-
-
-        #mesh.show()
-        #self.obj = self.load_scene("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj")
-        #self.obj_mesh.draw()
 
         vertices = np.array(self.obj_mesh.vertices, dtype='f4')
+        bbox = utility.bounding_box(vertices) # Makes bounding box
+        self.prog['bbox.min'].value = bbox[0]
+        self.prog['bbox.max'].value = bbox[1]
+
+
         indices = np.array(self.obj_mesh.faces)
 
-        print('Vertices 0-9', vertices[:10])
-        print('Indices 0-9', indices[:10])
+        #print('Vertices 0-9', vertices[:10])
+        #print('Indices 0-9', indices[:10])
 
 
         '''
