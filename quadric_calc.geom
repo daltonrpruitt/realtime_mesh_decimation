@@ -1,17 +1,27 @@
 #version 430
 layout (triangles) in;
-layout (triangle_strip, max_vertices = 3) out;
+layout (points, max_vertices = 3) out;
+
+in float cell_id[3];
+out float cell_id_geom;
+
 in int inst[3];
+
 void main() {
-    float x = gl_in[0].gl_Position.x;
-    float y = gl_in[0].gl_Position.y;
-    //float x = float(gl_PrimitiveIDIn / 10) / 9 - 0.5 + inst[0] / 20.0;
-    //float y = float(gl_PrimitiveIDIn % 10) / 9 - 0.5 + inst[0] / 20.0;
-    gl_Position = vec4(x - 0.007, y - 0.007, 0.0, 1.0);
+
+    //float vert1 = gl_in[0].gl_Position.xyz;
+    //gl_Position = vec4(x - 0.007, y - 0.007, 0.0, 1.0);
+    cell_id_geom = cell_id[0];
     EmitVertex();
-    gl_Position = vec4(x + 0.007, y - 0.007, 0.0, 1.0);
+    EndPrimitive();
+
+    //gl_Position = vec4(x + 0.007, y - 0.007, 0.0, 1.0);
+    cell_id_geom = cell_id[1];
     EmitVertex();
-    gl_Position = vec4(x, y + 0.007, 0.0, 1.0);
+    EndPrimitive();
+
+    //gl_Position = vec4(x, y + 0.007, 0.0, 1.0);
+    cell_id_geom = cell_id[2];
     EmitVertex();
     EndPrimitive();
 }

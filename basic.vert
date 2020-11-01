@@ -16,5 +16,5 @@ uniform mat4 proj;
 void main() {
     vec3 avg = (bbox.min + bbox.max )/ 2.0;
     vec3 scale = (bbox.max - bbox.min)/1.5;
-    gl_Position = proj * view * model * vec4((inVert - avg)/scale, 0.0);
+    gl_Position = proj * view * model * vec4((inVert - avg)/max(scale.x, max(scale.y, scale.z)), 0.0);
 }
