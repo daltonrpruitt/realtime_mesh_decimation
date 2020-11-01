@@ -12,10 +12,11 @@ from window_setup import BasicWindow  # imports moderngl_window
 from moderngl import Uniform
 import time
 import trimesh
+import pywavefront
 import utility
 import transformations as transf
 
-class MeshDecimationWindow(BasicWindow):
+class FirstPassWindow(BasicWindow):
     gl_version = (4, 3)
     title = "Geometry Shader Testing"
 
@@ -51,12 +52,16 @@ class MeshDecimationWindow(BasicWindow):
 
         self.back_color = (0, 0.3, 0.9, 1.0) #(1,1,1, 1)
         st = time.time()
-        self.obj_mesh = trimesh.load("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj", file_type='obj', force="mesh" )
+        #self.obj_mesh = trimesh.exchange.load.load("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj")
+        self.obj_mesh = pywavefront.Wavefront("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj", collect_faces=True)
         print("Loading took {:.2f} s".format(time.time()-st))
         vertices = np.array(self.obj_mesh.vertices, dtype='f4')
         bbox = utility.bounding_box(vertices) # Makes bounding box
-        print(len(vertices))
-        print(self.obj_mesh.vertices[:50])
+        #print(len(vertices))
+        #self.obj_mesh.show()
+        #print(self.obj_mesh.vertices[:10])
+        #print(self.obj_mesh.mesh_list[0].faces[:10])
+        #exit()
 
         if self.mini_tris:
             self.miniTrisProg['bbox.min'].value = bbox[0]
@@ -66,11 +71,7 @@ class MeshDecimationWindow(BasicWindow):
             self.miniTrisProg['view'].value = tuple(transf.identity_matrix().ravel())
             self.miniTrisProg['proj'].value = tuple(transf.identity_matrix().ravel())
 
-            self.miniTrisProg['cell_full_scale'].value = 100
-            self.miniTrisProg['resolution'].value = resolution
-
-
-            indices = np.array(self.obj_mesh.faces)
+            indices = np.array(self.obj_mesh.mesh_list[0].faces)
 
             #print('Vertices 0-9', vertices[:10])
             #print('Indices 0-9', indices[:10])
@@ -102,25 +103,27 @@ class MeshDecimationWindow(BasicWindow):
                 ]
             )
         elif self.first_pass:
+
+            self.ctx.blend_func = self.ctx.ADDITIVE_BLENDING # Required to add quadrics together
+
             self.cluster_quadric_map_generation['bbox.min'].value = bbox[0]
             self.cluster_quadric_map_generation['bbox.max'].value = bbox[1]
-            #print(tuple(transf.compose_matrix(angles=(0, np.pi/2, 0)).ravel()))
-            #self.cluster_quadric_map_generation['model'].value = tuple(transf.compose_matrix(angles=(0, np.pi/2, 0)).ravel())
-            #self.cluster_quadric_map_generation['view'].value = tuple(transf.identity_matrix().ravel())
-            #self.cluster_quadric_map_generation['proj'].value = tuple(transf.identity_matrix().ravel())
 
             self.cluster_quadric_map_generation['cell_full_scale'].value = 100
             self.cluster_quadric_map_generation['resolution'].value = resolution
+            self.wnd.size = (resolution**2, resolution)
+            print(self.wnd.size)
+            #self.cluster_quadric_map_generation['width'].value = self.wnd.width
+            #self.cluster_quadric_map_generation['height'].value = self.wnd.height
 
 
-            indices = np.array(self.obj_mesh.faces)
+            indices = np.array(self.obj_mesh.mesh_list[0].faces)
 
             #print('Vertices 0-9', vertices[:10])
             #print('Indices 0-9', indices[:10])
 
-            
             # Initialize an empty array texture for octree
-            self.cell_texture = self.ctx.texture(size=(resolution,resolution**2), components=4, 
+            self.cell_texture = self.ctx.texture(size=(resolution**2,resolution), components=4, 
                                 data=np.zeros(resolution**3 * 4,dtype="f4", order='C'),
                                 alignment=1,
                                 dtype="f4")
@@ -131,7 +134,7 @@ class MeshDecimationWindow(BasicWindow):
                                 alignment=1,
                                 dtype="f4")   
             '''                  
-            print(self.cell_texture._size)
+            print("cell texture size =",self.cell_texture._size)
             #exit()
             self.cell_framebuffer = self.ctx.framebuffer(color_attachments=[self.cell_texture])
             self.vbo = self.ctx.buffer(vertices)
@@ -167,11 +170,14 @@ class MeshDecimationWindow(BasicWindow):
     def render(self, run_time, frame_time):
         if self.first_pass:
             self.ctx.clear(1.0, 1.0, 1.0)
-            self.vao.render(mode=moderngl.POINTS)
+            #self.vao.render(mode=moderngl.POINTS)
             if not self.first_pass_output:
                 self.first_pass_output = True
-                with open("first_pass_output.txt","wb") as output_file:
+                with open("first_pass_output.bin","wb") as output_file:
                     output_file.write(self.cell_framebuffer.read())
+                self.first_pass = False
+        elif not self.first_pass:
+            self.close()
 
 
         elif self.mini_tris:
@@ -184,4 +190,5 @@ class MeshDecimationWindow(BasicWindow):
         
 
 if __name__ == '__main__':
-    MeshDecimationWindow.run()
+    FirstPassWindow.run()
+    #fp_window.run()
