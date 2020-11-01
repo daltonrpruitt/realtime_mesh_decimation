@@ -15,7 +15,7 @@ import trimesh
 import utility
 import transformations as transf
 
-class RayMarchingWindow(BasicWindow):
+class MeshDecimationWindow(BasicWindow):
     gl_version = (4, 3)
     title = "Geometry Shader Testing"
 
@@ -23,12 +23,12 @@ class RayMarchingWindow(BasicWindow):
         
         super().__init__(**kwargs)
 
-        '''
+        
         self.miniTrisProg = self.ctx.program(
-            vertex_shader=open("basic.vert", "r").read(),
-            geometry_shader=open("miniTris.geom", "r").read(),
-            fragment_shader=open("basic.frag", "r").read(),
-        )'''
+            vertex_shader=open("shaders/basic.vert", "r").read(),
+            geometry_shader=open("shaders/miniTris.geom", "r").read(),
+            fragment_shader=open("shaders/basic.frag", "r").read(),
+        )
         #self.vao = self.ctx.vertex_array(self.prog, [])
         '''
         self.basicProg = self.ctx.program(
@@ -38,24 +38,27 @@ class RayMarchingWindow(BasicWindow):
         )
         '''
         self.cluster_quadric_map_generation = self.ctx.program(
-            vertex_shader=open("cell_calc.vert", "r").read(),
-            geometry_shader=open("quadric_calc.geom", "r").read(),
-            fragment_shader=open("render_quadric.frag", "r").read(),
+            vertex_shader=open("shaders/first_pass/cell_calc.vert", "r").read(),
+            geometry_shader=open("shaders/first_pass/quadric_calc.geom", "r").read(),
+            fragment_shader=open("shaders/first_pass/render_quadric.frag", "r").read(),
 
         )
         
-        mini_tris = False
-        first_pass = True
+        self.mini_tris = False
+        self.first_pass = True
+        self.first_pass_output = False
+        resolution = 10  # Quadric Cell resolutin (# in each dimension)
 
         self.back_color = (0, 0.3, 0.9, 1.0) #(1,1,1, 1)
         st = time.time()
-        self.obj_mesh = trimesh.load("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj", file_type='obj', force="mesh")
+        self.obj_mesh = trimesh.load("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj", file_type='obj', force="mesh" )
         print("Loading took {:.2f} s".format(time.time()-st))
         vertices = np.array(self.obj_mesh.vertices, dtype='f4')
         bbox = utility.bounding_box(vertices) # Makes bounding box
+        print(len(vertices))
+        print(self.obj_mesh.vertices[:50])
 
-
-        if mini_tris:
+        if self.mini_tris:
             self.miniTrisProg['bbox.min'].value = bbox[0]
             self.miniTrisProg['bbox.max'].value = bbox[1]
             #print(tuple(transf.compose_matrix(angles=(0, np.pi/2, 0)).ravel()))
@@ -64,7 +67,7 @@ class RayMarchingWindow(BasicWindow):
             self.miniTrisProg['proj'].value = tuple(transf.identity_matrix().ravel())
 
             self.miniTrisProg['cell_full_scale'].value = 100
-            self.miniTrisProg['resolution'].value = 10
+            self.miniTrisProg['resolution'].value = resolution
 
 
             indices = np.array(self.obj_mesh.faces)
@@ -88,17 +91,7 @@ class RayMarchingWindow(BasicWindow):
                 0, 1, 2, 3
             ])
             idx_buffer = self.ctx.buffer(idx_data)
-            '''
-
-            
-            # Initialize an empty array texture for octree
-            self.cell_texture = self.ctx.texture(size=len(vertices), components=(4,4), 
-                                data=np.zeros((len(vertices)*4),dtype=float, order='C'),
-                                alignment=1,
-                                dtype="f4")
-            print(type(self.cell_texture))
-            exit()
-            
+            '''            
             self.vbo = self.ctx.buffer(vertices)
             
             print(self.vbo)
@@ -108,7 +101,7 @@ class RayMarchingWindow(BasicWindow):
                     (self.vbo, '3f', 'inVert'),
                 ]
             )
-        elif first_pass:
+        elif self.first_pass:
             self.cluster_quadric_map_generation['bbox.min'].value = bbox[0]
             self.cluster_quadric_map_generation['bbox.max'].value = bbox[1]
             #print(tuple(transf.compose_matrix(angles=(0, np.pi/2, 0)).ravel()))
@@ -117,7 +110,7 @@ class RayMarchingWindow(BasicWindow):
             #self.cluster_quadric_map_generation['proj'].value = tuple(transf.identity_matrix().ravel())
 
             self.cluster_quadric_map_generation['cell_full_scale'].value = 100
-            self.cluster_quadric_map_generation['resolution'].value = 10
+            self.cluster_quadric_map_generation['resolution'].value = resolution
 
 
             indices = np.array(self.obj_mesh.faces)
@@ -127,13 +120,20 @@ class RayMarchingWindow(BasicWindow):
 
             
             # Initialize an empty array texture for octree
-            self.cell_texture = self.ctx.texture(size=len(vertices), components=4, 
-                                data=np.zeros((len(vertices)*4),dtype=float, order='C'),
+            self.cell_texture = self.ctx.texture(size=(resolution,resolution**2), components=4, 
+                                data=np.zeros(resolution**3 * 4,dtype="f4", order='C'),
                                 alignment=1,
                                 dtype="f4")
-            print(type(self.cell_texture))
-            exit()
-            
+                
+            ''' May be used later?
+            self.vertex_texture = self.ctx.texture(size=(len(vertices),1), components=4, 
+                                data=np.zeros((len(vertices)*4),dtype="f4", order='C'),
+                                alignment=1,
+                                dtype="f4")   
+            '''                  
+            print(self.cell_texture._size)
+            #exit()
+            self.cell_framebuffer = self.ctx.framebuffer(color_attachments=[self.cell_texture])
             self.vbo = self.ctx.buffer(vertices)
             
             print(self.vbo)
@@ -165,15 +165,23 @@ class RayMarchingWindow(BasicWindow):
             pass
         
     def render(self, run_time, frame_time):
-        #self.ctx.clear(self.back_color)
-        self.ctx.clear(1.0, 1.0, 1.0)
-        #self.vao.render(mode=moderngl.POINTS, vertices=100, instances=2)
-        self.vao.render(mode=moderngl.POINTS)
-        self.miniTrisProg['model'].value = tuple(transf.compose_matrix(angles=(0, np.pi/2 * run_time/8, 0)).ravel())
+        if self.first_pass:
+            self.ctx.clear(1.0, 1.0, 1.0)
+            self.vao.render(mode=moderngl.POINTS)
+            if not self.first_pass_output:
+                self.first_pass_output = True
+                with open("first_pass_output.txt","wb") as output_file:
+                    output_file.write(self.cell_framebuffer.read())
+
+
+        elif self.mini_tris:
+            #self.ctx.clear(self.back_color)
+            self.ctx.clear(1.0, 1.0, 1.0)
+            #self.vao.render(mode=moderngl.POINTS, vertices=100, instances=2)
+            self.vao.render(mode=moderngl.POINTS)
+            self.miniTrisProg['model'].value = tuple(transf.compose_matrix(angles=(0, np.pi/2 * run_time/8, 0)).ravel())
 
         
 
 if __name__ == '__main__':
-    RayMarchingWindow.run()
-    #wind = RayMarchingWindow()
-    #wind.render()
+    MeshDecimationWindow.run()
