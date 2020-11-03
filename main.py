@@ -112,8 +112,8 @@ class FirstPassWindow(BasicWindow):
             #self.cluster_quadric_map_generation_prog['resolution'].value = self.resolution
             
             
-            #self.wnd.size = (self.resolution**2, self.resolution)
-            #self.wnd.resize(self.resolution**2, self.resolution)
+            self.wnd.size = (self.resolution**2, self.resolution)
+            self.wnd.resize(self.resolution**2, self.resolution)
             #print(self.wnd.size)
             #exit()
 
