@@ -34,7 +34,7 @@ void main() {
     cell_id = cell_indices.x + cell_indices.y * resolution + cell_indices.z * pow(resolution, 2.0);
 
     //gl_Position = vec4(cell_indices/(resolution/2.0) - 1, 0.0);// proj * view * model * vec4(scaled_down_vert, 0.0);
-    gl_Position = vec4(inVert, 1.);
+    gl_Position = vec4(pos_only_vert/scale - vec3(0.5), 1.);
     //gl_Position = vec4((inVert - avg)/max(scale.x, max(scale.y, scale.z)), 0.0);
 
     float x_range = resolution * resolution;

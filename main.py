@@ -109,10 +109,14 @@ class FirstPassWindow(BasicWindow):
             self.cluster_quadric_map_generation_prog['bbox.max'].value = bbox[1]
 
             #self.cluster_quadric_map_generation_prog['cell_full_scale'].value = self.resolution
-            self.cluster_quadric_map_generation_prog['resolution'].value = self.resolution
-            ###self.wnd.size = (self.resolution**2, self.resolution)
-            ###self.wnd.resize(self.resolution**2, self.resolution)
+            #self.cluster_quadric_map_generation_prog['resolution'].value = self.resolution
+            
+            
+            #self.wnd.size = (self.resolution**2, self.resolution)
+            #self.wnd.resize(self.resolution**2, self.resolution)
             #print(self.wnd.size)
+            #exit()
+
             #self.cluster_quadric_map_generation_prog['width'].value = self.wnd.width
             #self.cluster_quadric_map_generation_prog['height'].value = self.wnd.height
 
@@ -175,12 +179,27 @@ class FirstPassWindow(BasicWindow):
         if self.first_pass:
             #self.cell_framebuffer.use() 
             #print(self.ctx.fbo)
-            self.ctx.clear(1., 1., 1.)
-            #self.ctx.enable(moderngl.BLEND)
-            #self.ctx.blend_func = self.ctx.ADDITIVE_BLENDING # Required to add quadrics together
+            self.ctx.screen.clear(0., 0., 0., 0.)
+            self.ctx.enable(moderngl.BLEND)
+            self.ctx.blend_func = self.ctx.ADDITIVE_BLENDING # Required to add quadrics together
             self.fp_vao.render(mode=moderngl.POINTS)
-            '''if not self.first_pass_output:
+            if not self.first_pass_output:
                 self.first_pass_output = True
+
+                num_components = 4
+                print("Screen size:",self.ctx.screen.size, len(self.ctx.screen.read(components=num_components, dtype="f4")))
+                #print(self.ctx.screen.read(components=num_components, dtype="f4"))
+                raw_data = self.ctx.screen.read(components=num_components, dtype="f4")
+                first_pass_data = np.frombuffer(raw_data, dtype="f4"),
+                
+                print("FP Data Shape:", first_pass_data[0].shape)
+                new_shape = list(self.wnd.size) + [num_components]
+                print("New shape:",new_shape )
+                first_pass_data = np.reshape(first_pass_data, newshape=new_shape )     
+                print("FP Data Shape:", first_pass_data.shape)
+                                       
+                #exit()
+                '''
                 print("Framebuffer size:",len(self.cell_framebuffer.read(components=4, dtype="f4")))
                 print(self.cell_framebuffer.read(components=4, dtype="f4")[120:140])
                 first_pass_data = np.reshape(
@@ -189,16 +208,17 @@ class FirstPassWindow(BasicWindow):
                     )                
                 print(first_pass_data.shape)
                 #exit()
-
-                np.save("first_pass_output", first_pass_data)
-                #exit()
-                print(os.path.getsize("./first_pass_output.npy"))
                 '''
-                #self.first_pass = False
+                np.save("first_pass_output_pix", first_pass_data)
+                #exit()
+                print(os.path.getsize("./first_pass_output_pix.npy"))
+                self.first_pass_output = True
+                
+                self.first_pass = False
                 #self.cell_framebuffer.release()
         elif not self.first_pass and self.mini_tris:
             #self.ctx.clear(self.back_color)
-            self.ctx.clear(1.0, 1.0, 1.0)
+            self.ctx.clear(0.0, 0.0, 0.0)
             #self.vao.render(mode=moderngl.POINTS, vertices=100, instances=2)
             self.vao.render(mode=moderngl.POINTS)
             self.miniTrisProg['model'].value = tuple(transf.compose_matrix(angles=(0, np.pi/2 * run_time/8, 0)).ravel())
