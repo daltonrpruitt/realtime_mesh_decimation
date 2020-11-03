@@ -41,7 +41,7 @@ class FirstPassWindow(BasicWindow):
         '''
         self.cluster_quadric_map_generation_prog = self.ctx.program(
             vertex_shader=open("shaders/first_pass/cell_calc.vert", "r").read(),
-            #geometry_shader=open("shaders/first_pass/quadric_calc.geom", "r").read(),
+            geometry_shader=open("shaders/first_pass/quadric_calc.geom", "r").read(),
             fragment_shader=open("shaders/first_pass/render_quadric.frag", "r").read(),
 
         )
@@ -105,11 +105,11 @@ class FirstPassWindow(BasicWindow):
             )
         elif self.first_pass:
 
-            #self.cluster_quadric_map_generation_prog['bbox.min'].value = bbox[0]
-            #self.cluster_quadric_map_generation_prog['bbox.max'].value = bbox[1]
+            self.cluster_quadric_map_generation_prog['bbox.min'].value = bbox[0]
+            self.cluster_quadric_map_generation_prog['bbox.max'].value = bbox[1]
 
             #self.cluster_quadric_map_generation_prog['cell_full_scale'].value = self.resolution
-            #self.cluster_quadric_map_generation_prog['resolution'].value = self.resolution
+            self.cluster_quadric_map_generation_prog['resolution'].value = self.resolution
             ###self.wnd.size = (self.resolution**2, self.resolution)
             ###self.wnd.resize(self.resolution**2, self.resolution)
             #print(self.wnd.size)
@@ -175,7 +175,7 @@ class FirstPassWindow(BasicWindow):
         if self.first_pass:
             #self.cell_framebuffer.use() 
             #print(self.ctx.fbo)
-            self.ctx.clear(1., 1., 1., 1.0)
+            self.ctx.clear(1., 1., 1.)
             #self.ctx.enable(moderngl.BLEND)
             #self.ctx.blend_func = self.ctx.ADDITIVE_BLENDING # Required to add quadrics together
             self.fp_vao.render(mode=moderngl.POINTS)
@@ -193,19 +193,21 @@ class FirstPassWindow(BasicWindow):
                 np.save("first_pass_output", first_pass_data)
                 #exit()
                 print(os.path.getsize("./first_pass_output.npy"))
-                '''#self.first_pass = False
+                '''
+                #self.first_pass = False
                 #self.cell_framebuffer.release()
-        elif not self.first_pass:
-            self.close()
-            #exit()
-
-
-        elif self.mini_tris:
+        elif not self.first_pass and self.mini_tris:
             #self.ctx.clear(self.back_color)
             self.ctx.clear(1.0, 1.0, 1.0)
             #self.vao.render(mode=moderngl.POINTS, vertices=100, instances=2)
             self.vao.render(mode=moderngl.POINTS)
             self.miniTrisProg['model'].value = tuple(transf.compose_matrix(angles=(0, np.pi/2 * run_time/8, 0)).ravel())
+
+        else:
+            self.close()
+            exit()
+
+
 
         
 
