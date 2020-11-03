@@ -15,6 +15,7 @@ import trimesh
 import pywavefront
 import utility
 import transformations as transf
+import os
 
 class FirstPassWindow(BasicWindow):
     gl_version = (4, 3)
@@ -38,9 +39,9 @@ class FirstPassWindow(BasicWindow):
             fragment_shader=open("basic.frag", "r").read(),
         )
         '''
-        self.cluster_quadric_map_generation = self.ctx.program(
+        self.cluster_quadric_map_generation_prog = self.ctx.program(
             vertex_shader=open("shaders/first_pass/cell_calc.vert", "r").read(),
-            geometry_shader=open("shaders/first_pass/quadric_calc.geom", "r").read(),
+            #geometry_shader=open("shaders/first_pass/quadric_calc.geom", "r").read(),
             fragment_shader=open("shaders/first_pass/render_quadric.frag", "r").read(),
 
         )
@@ -48,7 +49,7 @@ class FirstPassWindow(BasicWindow):
         self.mini_tris = False
         self.first_pass = True
         self.first_pass_output = False
-        resolution = 10  # Quadric Cell resolutin (# in each dimension)
+        self.resolution = 10  # Quadric Cell resolution (# in each dimension)
 
         self.back_color = (0, 0.3, 0.9, 1.0) #(1,1,1, 1)
         st = time.time()
@@ -104,27 +105,28 @@ class FirstPassWindow(BasicWindow):
             )
         elif self.first_pass:
 
-            self.ctx.blend_func = self.ctx.ADDITIVE_BLENDING # Required to add quadrics together
+            #self.cluster_quadric_map_generation_prog['bbox.min'].value = bbox[0]
+            #self.cluster_quadric_map_generation_prog['bbox.max'].value = bbox[1]
 
-            self.cluster_quadric_map_generation['bbox.min'].value = bbox[0]
-            self.cluster_quadric_map_generation['bbox.max'].value = bbox[1]
-
-            self.cluster_quadric_map_generation['cell_full_scale'].value = 100
-            self.cluster_quadric_map_generation['resolution'].value = resolution
-            self.wnd.size = (resolution**2, resolution)
-            print(self.wnd.size)
-            #self.cluster_quadric_map_generation['width'].value = self.wnd.width
-            #self.cluster_quadric_map_generation['height'].value = self.wnd.height
+            #self.cluster_quadric_map_generation_prog['cell_full_scale'].value = self.resolution
+            #self.cluster_quadric_map_generation_prog['resolution'].value = self.resolution
+            ###self.wnd.size = (self.resolution**2, self.resolution)
+            ###self.wnd.resize(self.resolution**2, self.resolution)
+            #print(self.wnd.size)
+            #self.cluster_quadric_map_generation_prog['width'].value = self.wnd.width
+            #self.cluster_quadric_map_generation_prog['height'].value = self.wnd.height
 
 
             indices = np.array(self.obj_mesh.mesh_list[0].faces)
-
+            index_buffer = self.ctx.buffer(indices)
             #print('Vertices 0-9', vertices[:10])
             #print('Indices 0-9', indices[:10])
 
             # Initialize an empty array texture for octree
-            self.cell_texture = self.ctx.texture(size=(resolution**2,resolution), components=4, 
-                                data=np.zeros(resolution**3 * 4,dtype="f4", order='C'),
+            self.cell_texture = self.ctx.texture(
+                                size=(self.resolution**2,self.resolution * 4), 
+                                components=4, 
+                                data=np.zeros(self.resolution**3 * 4 * 4,dtype=np.float32, order='C'),
                                 alignment=1,
                                 dtype="f4")
                 
@@ -134,17 +136,19 @@ class FirstPassWindow(BasicWindow):
                                 alignment=1,
                                 dtype="f4")   
             '''                  
-            print("cell texture size =",self.cell_texture._size)
+            print("cell texture size =",self.cell_texture.size,"components=",self.cell_texture.components)
             #exit()
-            self.cell_framebuffer = self.ctx.framebuffer(color_attachments=[self.cell_texture])
+            self.cell_framebuffer = self.ctx.framebuffer(color_attachments=self.cell_texture)
+            #print("Framebuffer for cell: Size =",self.cell_framebuffer.size, "viewport =",self.cell_framebuffer.viewport)
+            #self.cell_framebuffer.use()
             self.vbo = self.ctx.buffer(vertices)
             
-            print(self.vbo)
-            self.vao = self.ctx.vertex_array(
-                self.cluster_quadric_map_generation, 
+            #print(self.vbo)
+            self.fp_vao = self.ctx.vertex_array(
+                self.cluster_quadric_map_generation_prog, 
                 [
                     (self.vbo, '3f', 'inVert'),
-                ]
+                ],
             )
 
         
@@ -169,15 +173,31 @@ class FirstPassWindow(BasicWindow):
         
     def render(self, run_time, frame_time):
         if self.first_pass:
-            self.ctx.clear(1.0, 1.0, 1.0)
-            #self.vao.render(mode=moderngl.POINTS)
-            if not self.first_pass_output:
+            #self.cell_framebuffer.use() 
+            #print(self.ctx.fbo)
+            self.ctx.clear(1., 1., 1., 1.0)
+            #self.ctx.enable(moderngl.BLEND)
+            #self.ctx.blend_func = self.ctx.ADDITIVE_BLENDING # Required to add quadrics together
+            self.fp_vao.render(mode=moderngl.POINTS)
+            '''if not self.first_pass_output:
                 self.first_pass_output = True
-                with open("first_pass_output.bin","wb") as output_file:
-                    output_file.write(self.cell_framebuffer.read())
-                self.first_pass = False
+                print("Framebuffer size:",len(self.cell_framebuffer.read(components=4, dtype="f4")))
+                print(self.cell_framebuffer.read(components=4, dtype="f4")[120:140])
+                first_pass_data = np.reshape(
+                    np.frombuffer(self.cell_framebuffer.read(components=4, dtype="f4"), dtype=np.float32),
+                            newshape=(self.resolution**2, self.resolution * 4, 4)
+                    )                
+                print(first_pass_data.shape)
+                #exit()
+
+                np.save("first_pass_output", first_pass_data)
+                #exit()
+                print(os.path.getsize("./first_pass_output.npy"))
+                '''#self.first_pass = False
+                #self.cell_framebuffer.release()
         elif not self.first_pass:
             self.close()
+            #exit()
 
 
         elif self.mini_tris:
