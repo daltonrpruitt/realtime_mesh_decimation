@@ -37,8 +37,8 @@ void main() {
     gl_Position = vec4(pos_only_vert/scale - vec3(0.5), 1.);
     //gl_Position = vec4((inVert - avg)/max(scale.x, max(scale.y, scale.z)), 0.0);
 
-    float x_range = resolution * resolution;
-    float y_range = resolution * 4;
+    //float x_range = resolution * resolution;
+    //float y_range = resolution * 4;
     //float vert1 = gl_in[0].gl_Position.xyz;
     //gl_Position = vec4(gl_in[0].gl_Position.x * gl_in[0].gl_Position.z, gl_in[0].gl_Position.y, 0., 0.) ; //vec4(x - 0.007, y - 0.007, 0.0, 1.0);
     //cell_id_geom = cell_id[0];

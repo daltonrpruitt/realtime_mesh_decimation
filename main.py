@@ -177,9 +177,9 @@ class FirstPassWindow(BasicWindow):
         
     def render(self, run_time, frame_time):
         if self.first_pass:
-            #self.cell_framebuffer.use() 
+            self.cell_framebuffer.use() 
             #print(self.ctx.fbo)
-            self.ctx.screen.clear(0., 0., 0., 0.)
+            self.ctx.clear(0., 0., 0., 0.)
             self.ctx.enable(moderngl.BLEND)
             self.ctx.blend_func = self.ctx.ADDITIVE_BLENDING # Required to add quadrics together
             self.fp_vao.render(mode=moderngl.POINTS)
@@ -187,6 +187,7 @@ class FirstPassWindow(BasicWindow):
                 self.first_pass_output = True
 
                 num_components = 4
+                '''
                 print("Screen size:",self.ctx.screen.size, len(self.ctx.screen.read(components=num_components, dtype="f4")))
                 #print(self.ctx.screen.read(components=num_components, dtype="f4"))
                 raw_data = self.ctx.screen.read(components=num_components, dtype="f4")
@@ -197,9 +198,9 @@ class FirstPassWindow(BasicWindow):
                 print("New shape:",new_shape )
                 first_pass_data = np.reshape(first_pass_data, newshape=new_shape )     
                 print("FP Data Shape:", first_pass_data.shape)
+                '''
                                        
                 #exit()
-                '''
                 print("Framebuffer size:",len(self.cell_framebuffer.read(components=4, dtype="f4")))
                 print(self.cell_framebuffer.read(components=4, dtype="f4")[120:140])
                 first_pass_data = np.reshape(
@@ -208,10 +209,9 @@ class FirstPassWindow(BasicWindow):
                     )                
                 print(first_pass_data.shape)
                 #exit()
-                '''
-                np.save("first_pass_output_pix", first_pass_data)
+                np.save("first_pass_output", first_pass_data)
                 #exit()
-                print(os.path.getsize("./first_pass_output_pix.npy"))
+                print(os.path.getsize("./first_pass_output.npy"))
                 self.first_pass_output = True
                 
                 self.first_pass = False
