@@ -1,0 +1,29 @@
+#version 430
+
+#define X %%X%%
+#define Y %%Y%%
+#define Z %%Z%%
+
+#define NUM_VERTS %%NUM_VERTS%%
+#define NUM_TRIS %%NUM_TRIS%%
+
+// Workgroup Sizes
+layout(local_size_x=X, local_size_y=Y, local_size_z=Z) in;
+
+
+
+uniform vec3 inVerts[NUM_VERTS]; // NUM_VERTS
+uniform vec3 inIndices[NUM_TRIS]; // NUM_TRIS
+
+layout (std430, binding = 0) buffer quadric_map
+{
+    vec4 vertex_pos_total[1];
+    vec4 quadric_first_4[1];
+    vec4 quadric_next_3_plus_1[1];
+    vec4 quadric_last_2[1];
+};
+
+void main() {
+
+
+}

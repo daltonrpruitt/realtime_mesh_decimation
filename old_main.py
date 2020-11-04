@@ -17,59 +17,6 @@ import utility
 import transformations as transf
 import os
 
-# Directly from moderngl compute_shader.py example : https://github.com/moderngl/moderngl/blob/master/examples/compute_shader.py
-def source(uri, consts):
-    ''' read gl code '''
-    with open(uri, 'r') as fp:
-        content = fp.read()
-
-    # feed constant values
-    for key, value in consts.items():
-        content = content.replace(f"%%{key}%%", str(value))
-    return content
-
-
-st = time.time()
-#self.obj_mesh = trimesh.exchange.load.load("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj")
-obj_mesh = pywavefront.Wavefront("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj", collect_faces=True)
-print("Loading mesh took {:.2f} s".format(time.time()-st))
-vertices = np.array(obj_mesh.vertices, dtype='f4')
-bbox = utility.bounding_box(vertices) # Makes bounding box
-indices = np.array(obj_mesh.mesh_list[0].faces)
-#print(len(vertices))
-#self.obj_mesh.show()
-#print(self.obj_mesh.vertices[:10])
-#print(self.obj_mesh.mesh_list[0].faces[:10])
-
-shader_constants = {
-    "NUM_VERTS": len(vertices), 
-    "NUM_TRIS" : len(indices), 
-    "X": 1024,
-    "Y": 1, 
-    "Z": 1
-}
-
-# Standalone since not doing any rendering yet
-fp_context = moderngl.create_standalone_context(require=430)
-first_pass_comp_shader = fp_context.compute_shader(source("shaders/firstpass.comp", shader_constants))
-print("Successfully compiled compute shader!")
-exit()
-
-''' TODO for First Pass: 
-    1. Get vertex and index data to compute shader; and get output buffer recognized
-    2. Perform calculations on vertices by using index data
-    3. Output the required 14 floats of data (and maybe the extra cluster id) to output buffer
-    4. Save the buffer to a file and check its contents to verify it is at least coherent
-    5. Cleanup code (if have time)
-'''
-
-''' TODO for Second Pass: 
-    1. Finish First Pass...
-    ...
-    ?.. Cleanup 
-'''
-
-
 class FirstPassWindow(BasicWindow):
     gl_version = (4, 3)
     title = "Geometry Shader Testing"
@@ -78,15 +25,44 @@ class FirstPassWindow(BasicWindow):
         
         super().__init__(**kwargs)
 
-    
         
-    
+        self.miniTrisProg = self.ctx.program(
+            vertex_shader=open("shaders/basic.vert", "r").read(),
+            geometry_shader=open("shaders/miniTris.geom", "r").read(),
+            fragment_shader=open("shaders/basic.frag", "r").read(),
+        )
+        #self.vao = self.ctx.vertex_array(self.prog, [])
+        '''
+        self.basicProg = self.ctx.program(
+            vertex_shader=open("basic.vert", "r").read(),
+            geometry_shader=open("miniTris.geom", "r").read(),
+            fragment_shader=open("basic.frag", "r").read(),
+        )
+        '''
+        self.cluster_quadric_map_generation_prog = self.ctx.program(
+            vertex_shader=open("shaders/first_pass/cell_calc.vert", "r").read(),
+            geometry_shader=open("shaders/first_pass/quadric_calc.geom", "r").read(),
+            fragment_shader=open("shaders/first_pass/render_quadric.frag", "r").read(),
+
+        )
+        
         self.mini_tris = False
         self.first_pass = True
         self.first_pass_output = False
         self.resolution = 10  # Quadric Cell resolution (# in each dimension)
 
         self.back_color = (0, 0.3, 0.9, 1.0) #(1,1,1, 1)
+        st = time.time()
+        #self.obj_mesh = trimesh.exchange.load.load("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj")
+        self.obj_mesh = pywavefront.Wavefront("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj", collect_faces=True)
+        print("Loading took {:.2f} s".format(time.time()-st))
+        vertices = np.array(self.obj_mesh.vertices, dtype='f4')
+        bbox = utility.bounding_box(vertices) # Makes bounding box
+        #print(len(vertices))
+        #self.obj_mesh.show()
+        #print(self.obj_mesh.vertices[:10])
+        #print(self.obj_mesh.mesh_list[0].faces[:10])
+        #exit()
 
         if self.mini_tris:
             self.miniTrisProg['bbox.min'].value = bbox[0]
@@ -145,6 +121,7 @@ class FirstPassWindow(BasicWindow):
             #self.cluster_quadric_map_generation_prog['height'].value = self.wnd.height
 
 
+            indices = np.array(self.obj_mesh.mesh_list[0].faces)
             index_buffer = self.ctx.buffer(indices)
             #print('Vertices 0-9', vertices[:10])
             #print('Indices 0-9', indices[:10])

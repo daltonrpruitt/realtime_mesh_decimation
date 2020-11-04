@@ -4,6 +4,9 @@ layout (points, max_vertices = 1) out;
 
 in float cell_id[1];
 out float cell_id_geom;
+out vec4 g_color;
+
+out vec3 positive_vertex_position;
 
 uniform float resolution;
 
@@ -15,7 +18,7 @@ void main() {
     *  Row 1: sum_vertex_position [x, y, z], vertex_count (together -> average vertex position)
     *  Row 2: a^2, ab, ac, ad
     *  Row 3: b^2, bc, bd, c^2
-    *  Row 4: cd, d^2, -1.0, -1.0
+    *  Row 4: cd, d^2, cell_id, -1.0
     * 
     *  Columns are just iterating up each cell_ID
     *
@@ -34,14 +37,16 @@ void main() {
     //float x = gl_in[0].gl_Position.x;
     //float y = gl_in[0].gl_Position.y;
     float x_range = resolution * resolution;
-    float y_range = resolution * 4;
+    float y_range = resolution * 4.0;
 
     //float x = float(gl_PrimitiveIDIn / 10) / 9 - 0.5 + inst[0] / 20.0;
     //float y = float(gl_PrimitiveIDIn % 10) / 9 - 0.5 + inst[0] / 20.0;
     //gl_Position = vec4(x - 0.05, y - 0.05, 0.0, 1.0);
-    gl_Position = vec4( (2.0 * mod(cell_id[0], x_range) - x_range)/x_range,
-                        -1.0 * (2.0 * 4.0 * trunc(cell_id[0] / (resolution * resolution)) - y_range) / y_range , 
-                        0.0, 1.0);
+
+    gl_Position = vec4(gl_in[0].gl_Position.xy * 0.0001, 1.0, 1.0);/*vec4( (2.0 * mod(cell_id[0], x_range) - x_range)/x_range,
+                        -1.0 * (2.0 * 4.0 * trunc(cell_id[0] / x_range) - y_range + 0.0 * 2.0 / y_range) / y_range , 
+                        0.0, 1.0);*/
+    g_color = vec4(gl_in[0].gl_Position.xyz, 1.0);
 
     EmitVertex();
      /*
