@@ -1,6 +1,8 @@
 .idea/*
 data/*
 meshes/*
+*.npy
+*output*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
