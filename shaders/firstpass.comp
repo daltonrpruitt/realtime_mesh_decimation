@@ -8,14 +8,22 @@
 #define NUM_TRIS %%NUM_TRIS%%
 
 // Workgroup Sizes
-layout(local_size_x=X, local_size_y=Y, local_size_z=Z) in;
+layout(local_size_x=1, local_size_y=1, local_size_z=1) in;
 
 
+layout(std430, binding=0) buffer inVerts
+{
+    vec3 vertices[];
+};
 
-uniform vec3 inVerts[NUM_VERTS]; // NUM_VERTS
-uniform vec3 inIndices[NUM_TRIS]; // NUM_TRIS
+layout(std430, binding=1) buffer inIndices
+{
+    vec3 indices[];
+};
 
-layout (std430, binding = 0) buffer quadric_map
+//uniform vec3 inIndices[NUM_TRIS]; // NUM_TRIS
+
+layout (std430, binding = 3) buffer quadric_map
 {
     vec4 vertex_pos_total[1];
     vec4 quadric_first_4[1];
@@ -23,7 +31,15 @@ layout (std430, binding = 0) buffer quadric_map
     vec4 quadric_last_2[1];
 };
 
+
+layout(rgba32f, binding = 4) uniform writeonly image2D img_output;
+
 void main() {
 
-
+    ivec2 output_index = ivec2(gl_GlobalInvocationID.xy); 
+    vec3 current_vector = vertices[output_index.x ];
+    //ivec2 dimens = imageSize(img_output);
+    vec4 output_val = vec4(current_vector, -1.0);
+    imageStore(img_output, output_index, output_val);
+    
 }

@@ -44,15 +44,30 @@ indices = np.array(obj_mesh.mesh_list[0].faces)
 shader_constants = {
     "NUM_VERTS": len(vertices), 
     "NUM_TRIS" : len(indices), 
-    "X": 1024,
+    "X": 1,
     "Y": 1, 
     "Z": 1
 }
+
+size = len(vertices)
+
 
 # Standalone since not doing any rendering yet
 fp_context = moderngl.create_standalone_context(require=430)
 first_pass_comp_shader = fp_context.compute_shader(source("shaders/firstpass.comp", shader_constants))
 print("Successfully compiled compute shader!")
+
+vertex_buffer = fp_context.buffer(vertices)
+index_buffer = fp_context.buffer(indices)
+vertex_buffer.bind_to_storage_buffer(binding=0)
+test_image = fp_context.texture(size=(size,1), components=4,dtype="f4") 
+test_image.bind_to_image(4, read=False, write=True)
+first_pass_comp_shader.run(size, 1, 1)
+
+output_data = np.reshape(np.frombuffer(test_image.read(),dtype=np.float32), newshape=(size, 4))
+print(output_data[0:10])
+print(output_data.shape, output_data.size)
+print(vertices[:10])
 exit()
 
 ''' TODO for First Pass: 
