@@ -55,11 +55,15 @@ void main() {
                 gl_GlobalInvocationID.x;  // Equivalent to cell ID, too
     ivec2 output_index = ivec2(gl_GlobalInvocationID.xy); 
     
-    //imageAtomicAdd(img_output_normx, output_index, int(g_id)); 
-    ///*
+    /*
+    imageAtomicAdd(img_output_normx, output_index, int(gl_GlobalInvocationID.x)); //vert_cluster_ids[idxs[v]]);// int_normal.x);
+    imageAtomicAdd(img_output_normy, output_index, int(gl_GlobalInvocationID.y));
+    imageAtomicAdd(img_output_normz, output_index, int(gl_GlobalInvocationID.z));
+    imageAtomicAdd(img_output_dist, output_index, int(g_id));
+    //*/
     
     // for each triangle
-    for (int i=0; i < 1;  i++) {
+    for (int i=0; i < NUM_TRIS;  i++) {
     
         
         uvec3 idxs = indices[i];
@@ -68,7 +72,8 @@ void main() {
         if (vert_cluster_ids[idxs[0]] != g_id && vert_cluster_ids[idxs[1]] != g_id && vert_cluster_ids[idxs[2]] != g_id ){
             continue;
         }
-        //imageAtomicAdd(img_output_normx, output_index, 1);// int_normal.x);
+
+        //imageAtomicAdd(img_output_normx, output_index, 1);// .x); // 
     
         
         // At least one vertex in current cell
