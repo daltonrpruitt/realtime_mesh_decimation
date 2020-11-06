@@ -1,7 +1,7 @@
 '''
     Dalton Winans-Pruitt  dp987
     Based on Hello World example from https://github.com/moderngl/moderngl/tree/master/examples
-    Testing geometry shader usage
+    Using Compute Shaders for mesh decimation
 '''
 
 import moderngl
@@ -16,6 +16,7 @@ import pywavefront
 import utility
 import transformations as transf
 import os
+from cell_id_generation import get_vertex_cell_indices_ids
 
 # Directly from moderngl compute_shader.py example : https://github.com/moderngl/moderngl/blob/master/examples/compute_shader.py
 def source(uri, consts):
@@ -29,6 +30,10 @@ def source(uri, consts):
     return content
 
 
+resolution = 2
+
+
+
 st = time.time()
 #self.obj_mesh = trimesh.exchange.load.load("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj")
 obj_mesh = pywavefront.Wavefront("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj", collect_faces=True)
@@ -36,10 +41,14 @@ print("Loading mesh took {:.2f} s".format(time.time()-st))
 vertices = np.array(obj_mesh.vertices, dtype='f4')
 bbox = utility.bounding_box(vertices) # Makes bounding box
 indices = np.array(obj_mesh.mesh_list[0].faces)
-#print(len(vertices))
-#self.obj_mesh.show()
-#print(self.obj_mesh.vertices[:10])
-#print(self.obj_mesh.mesh_list[0].faces[:10])
+
+st = time.time()
+vertex_cluster_indices, vertex_cluster_ids = get_vertex_cell_indices_ids(vertices=vertices, resolution=resolution)
+print("Generating vertex cluster indicies and IDs took {:.2f} s".format(time.time()-st))
+vertex_cluster_ids = np.array(vertex_cluster_ids, dtype=np.int32)
+
+print(vertex_cluster_ids[:30])
+print("No. of Tris:", len(indices))
 
 shader_constants = {
     "NUM_VERTS": len(vertices), 
@@ -49,7 +58,8 @@ shader_constants = {
     "Z": 1
 }
 
-size = len(vertices)
+#size = len(indices)
+size = resolution**3
 
 
 # Standalone since not doing any rendering yet
@@ -57,17 +67,68 @@ fp_context = moderngl.create_standalone_context(require=430)
 first_pass_comp_shader = fp_context.compute_shader(source("shaders/firstpass.comp", shader_constants))
 print("Successfully compiled compute shader!")
 
-vertex_buffer = fp_context.buffer(vertices)
-index_buffer = fp_context.buffer(indices)
-vertex_buffer.bind_to_storage_buffer(binding=0)
-test_image = fp_context.texture(size=(size,1), components=4,dtype="f4") 
-test_image.bind_to_image(4, read=False, write=True)
-first_pass_comp_shader.run(size, 1, 1)
 
-output_data = np.reshape(np.frombuffer(test_image.read(),dtype=np.float32), newshape=(size, 4))
-print(output_data[0:10])
+
+# Create/bind vertex/index data
+vertex_buffer = fp_context.buffer(vertices)
+vertex_buffer.bind_to_storage_buffer(binding=0)
+index_buffer = fp_context.buffer(indices)
+index_buffer.bind_to_storage_buffer(binding=1)
+
+cluster_id_buffer = fp_context.buffer(vertex_cluster_ids)
+cluster_id_buffer.bind_to_storage_buffer(binding=2)
+
+#print(np.reshape(np.frombuffer(vertex_buffer.read(),dtype="f4"),newshape=(len(vertices),3))[:5])
+
+output_images = []
+# Output "image" creation
+for i in range(4):
+    output_images.append(fp_context.texture(size=(size,1), components=1,dtype="i4"))
+    output_images[i].bind_to_image(4+i, read=True, write=True)
+    # TODO: Add more data images...
+
+
+#quadric_map = fp_context.texture(size=(size,4), components=4,dtype="f4") 
+
+first_pass_comp_shader['resolution'] = resolution
+
+
+st = time.time()
+first_pass_comp_shader.run(size, 1, 1)
+print("Running FP Compute Shader Took {:.5f} s".format(time.time()-st))
+
+# Output "image" creation
+output_data = np.reshape(np.frombuffer(output_images[0].read(),dtype=np.int32), newshape=(size, 1))
+for i in range(1,4):
+    output_data = np.concatenate(
+        [ output_data,
+        np.reshape(np.frombuffer(output_images[i].read(),dtype=np.int32), newshape=(size, 1)) ],
+        axis = 1)
+
+output_array = np.array(output_data, dtype=np.float32)
+print(output_array) # 
+print(np.sum(output_array, axis = 0)) # / 1000000
+
 print(output_data.shape, output_data.size)
-print(vertices[:10])
+
+exit()
+
+render_ctx = moderngl.create_context(require=430)
+render_prog = render_ctx.program(
+    vertex_shader="shaders/basic.vert",
+    fragment_shader="shaders/basic.frag"
+)
+render_prog["bbox.min"] = bbox[0]
+render_prog["bbox.max"] = bbox[1]
+
+render_vao = render_ctx.vertex_array(
+    [
+        vertices, "3f4", "inVert"
+    ]
+)
+
+render_vao.render(moderngl.TRIANGLES)
+
 exit()
 
 ''' TODO for First Pass: 
@@ -85,7 +146,7 @@ exit()
 '''
 
 
-class FirstPassWindow(BasicWindow):
+class RenderWindow(BasicWindow):
     gl_version = (4, 3)
     title = "Geometry Shader Testing"
 
@@ -93,105 +154,57 @@ class FirstPassWindow(BasicWindow):
         
         super().__init__(**kwargs)
 
-    
-        
-    
-        self.mini_tris = False
-        self.first_pass = True
-        self.first_pass_output = False
-        self.resolution = 10  # Quadric Cell resolution (# in each dimension)
-
         self.back_color = (0, 0.3, 0.9, 1.0) #(1,1,1, 1)
 
-        if self.mini_tris:
-            self.miniTrisProg['bbox.min'].value = bbox[0]
-            self.miniTrisProg['bbox.max'].value = bbox[1]
-            #print(tuple(transf.compose_matrix(angles=(0, np.pi/2, 0)).ravel()))
-            self.miniTrisProg['model'].value = tuple(transf.compose_matrix(angles=(0, np.pi/2, 0)).ravel())
-            self.miniTrisProg['view'].value = tuple(transf.identity_matrix().ravel())
-            self.miniTrisProg['proj'].value = tuple(transf.identity_matrix().ravel())
 
-            indices = np.array(self.obj_mesh.mesh_list[0].faces)
+        self.cluster_quadric_map_generation_prog['bbox.min'].value = bbox[0]
+        self.cluster_quadric_map_generation_prog['bbox.max'].value = bbox[1]
 
-            #print('Vertices 0-9', vertices[:10])
-            #print('Indices 0-9', indices[:10])
+        #self.cluster_quadric_map_generation_prog['cell_full_scale'].value = self.resolution
+        #self.cluster_quadric_map_generation_prog['resolution'].value = self.resolution
+        
+        
+        self.wnd.size = (self.resolution**2, self.resolution)
+        self.wnd.resize(self.resolution**2, self.resolution)
+        #print(self.wnd.size)
+        #exit()
+
+        #self.cluster_quadric_map_generation_prog['width'].value = self.wnd.width
+        #self.cluster_quadric_map_generation_prog['height'].value = self.wnd.height
 
 
-            '''
+        index_buffer = self.ctx.buffer(indices)
+        #print('Vertices 0-9', vertices[:10])
+        #print('Indices 0-9', indices[:10])
 
-            vertices = np.array([
-                -0.5, -0.5, 0,
-                0.5, -0.5, 0,
-                -0.5, 0.5, 0,
-                0.5, 0.5, 0,
-
-            ], dtype='f4')
-
-            # https://github.com/moderngl/moderngl/blob/master/examples/raymarching.py
-            idx_data = np.array([
-                0, 1, 2, 3
-            ])
-            idx_buffer = self.ctx.buffer(idx_data)
-            '''            
-            self.vbo = self.ctx.buffer(vertices)
+        # Initialize an empty array texture for octree
+        self.cell_texture = self.ctx.texture(
+                            size=(self.resolution**2,self.resolution * 4), 
+                            components=4, 
+                            data=np.zeros(self.resolution**3 * 4 * 4,dtype=np.float32, order='C'),
+                            alignment=1,
+                            dtype="f4")
             
-            print(self.vbo)
-            self.vao = self.ctx.vertex_array(
-                self.miniTrisProg, 
-                [
-                    (self.vbo, '3f', 'inVert'),
-                ]
-            )
-        elif self.first_pass:
-
-            self.cluster_quadric_map_generation_prog['bbox.min'].value = bbox[0]
-            self.cluster_quadric_map_generation_prog['bbox.max'].value = bbox[1]
-
-            #self.cluster_quadric_map_generation_prog['cell_full_scale'].value = self.resolution
-            #self.cluster_quadric_map_generation_prog['resolution'].value = self.resolution
-            
-            
-            self.wnd.size = (self.resolution**2, self.resolution)
-            self.wnd.resize(self.resolution**2, self.resolution)
-            #print(self.wnd.size)
-            #exit()
-
-            #self.cluster_quadric_map_generation_prog['width'].value = self.wnd.width
-            #self.cluster_quadric_map_generation_prog['height'].value = self.wnd.height
-
-
-            index_buffer = self.ctx.buffer(indices)
-            #print('Vertices 0-9', vertices[:10])
-            #print('Indices 0-9', indices[:10])
-
-            # Initialize an empty array texture for octree
-            self.cell_texture = self.ctx.texture(
-                                size=(self.resolution**2,self.resolution * 4), 
-                                components=4, 
-                                data=np.zeros(self.resolution**3 * 4 * 4,dtype=np.float32, order='C'),
-                                alignment=1,
-                                dtype="f4")
-                
-            ''' May be used later?
-            self.vertex_texture = self.ctx.texture(size=(len(vertices),1), components=4, 
-                                data=np.zeros((len(vertices)*4),dtype="f4", order='C'),
-                                alignment=1,
-                                dtype="f4")   
-            '''                  
-            print("cell texture size =",self.cell_texture.size,"components=",self.cell_texture.components)
-            #exit()
-            self.cell_framebuffer = self.ctx.framebuffer(color_attachments=self.cell_texture)
-            #print("Framebuffer for cell: Size =",self.cell_framebuffer.size, "viewport =",self.cell_framebuffer.viewport)
-            #self.cell_framebuffer.use()
-            self.vbo = self.ctx.buffer(vertices)
-            
-            #print(self.vbo)
-            self.fp_vao = self.ctx.vertex_array(
-                self.cluster_quadric_map_generation_prog, 
-                [
-                    (self.vbo, '3f', 'inVert'),
-                ],
-            )
+        ''' May be used later?
+        self.vertex_texture = self.ctx.texture(size=(len(vertices),1), components=4, 
+                            data=np.zeros((len(vertices)*4),dtype="f4", order='C'),
+                            alignment=1,
+                            dtype="f4")   
+        '''                  
+        print("cell texture size =",self.cell_texture.size,"components=",self.cell_texture.components)
+        #exit()
+        self.cell_framebuffer = self.ctx.framebuffer(color_attachments=self.cell_texture)
+        #print("Framebuffer for cell: Size =",self.cell_framebuffer.size, "viewport =",self.cell_framebuffer.viewport)
+        #self.cell_framebuffer.use()
+        self.vbo = self.ctx.buffer(vertices)
+        
+        #print(self.vbo)
+        self.fp_vao = self.ctx.vertex_array(
+            self.cluster_quadric_map_generation_prog, 
+            [
+                (self.vbo, '3f', 'inVert'),
+            ],
+        )
 
         
 
@@ -270,5 +283,5 @@ class FirstPassWindow(BasicWindow):
         
 
 if __name__ == '__main__':
-    FirstPassWindow.run()
+    RenderWindow.run()
     #fp_window.run()
