@@ -31,7 +31,7 @@ def source(uri, consts):
 
 
 resolution = 2
-
+float_to_int_scaling_factor = 32768
 
 
 st = time.time()
@@ -80,17 +80,20 @@ cluster_id_buffer.bind_to_storage_buffer(binding=2)
 
 #print(np.reshape(np.frombuffer(vertex_buffer.read(),dtype="f4"),newshape=(len(vertices),3))[:5])
 
-output_images = []
 # Output "image" creation
+output_image = fp_context.texture(size=(size,14), components=1, dtype="i4")
+output_image.bind_to_image(4, read=True, write=True)
+'''output_images = []
 for i in range(4):
     output_images.append(fp_context.texture(size=(size,1), components=1,dtype="i4"))
     output_images[i].bind_to_image(4+i, read=True, write=True)
     # TODO: Add more data images...
-
+'''
 
 #quadric_map = fp_context.texture(size=(size,4), components=4,dtype="f4") 
 
 first_pass_comp_shader['resolution'] = resolution
+first_pass_comp_shader['float_to_int_scaling_factor'] = float_to_int_scaling_factor
 
 
 st = time.time()
@@ -98,20 +101,53 @@ first_pass_comp_shader.run(size, 1, 1)
 print("Running FP Compute Shader Took {:.5f} s".format(time.time()-st))
 
 # Output "image" creation
-output_data = np.reshape(np.frombuffer(output_images[0].read(),dtype=np.int32), newshape=(size, 1))
-for i in range(1,4):
+output_data = np.reshape(np.frombuffer(output_image.read(),dtype=np.int32), newshape=(size, 14)) # / float_to_int_scaling_factor
+print(output_data[:,:])
+print(output_data[:,:4]/ float_to_int_scaling_factor)
+print(sum(output_data[:,3] / float_to_int_scaling_factor))
+exit()
+
+
+
+
+'''for i in range(1,4):
     output_data = np.concatenate(
         [ output_data,
         np.reshape(np.frombuffer(output_images[i].read(),dtype=np.int32), newshape=(size, 1)) ],
-        axis = 1)
+        axis = 1)'''
 
 output_array = np.array(output_data, dtype=np.float32)
+
+iter, span = 0, 20
+'''while True:
+    print(iter,"to",iter+span, ":", output_array[iter:iter+span])
+    iter+=span
+    if input("Enter nothing to continue:") != "":
+        break'''
+print(output_array[:2][:])
+output_sum_vertices = output_array[:,:3]
+print(output_sum_vertices.shape)
+output_count_vertices = output_array[:,3]
+
+print(output_array[35:40,:4])
+#print(output_sum_vertices)
+exit()
+avg_vertices = np.operator(output_sum_vertices/output_count_vertices,)
+print(np.max(output_average_vertices,axis=(0,1)))
 print(output_array) # 
 print(np.sum(output_array, axis = 0)) # / 1000000
 
 print(output_data.shape, output_data.size)
 
+
+
+
 exit()
+##########################################
+##########################################
+##########################################
+##########################################
+##########################################
 
 render_ctx = moderngl.create_context(require=430)
 render_prog = render_ctx.program(
