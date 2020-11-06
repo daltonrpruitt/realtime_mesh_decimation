@@ -1,7 +1,65 @@
 import utility
 import pywavefront
 import numpy as np
+from cell_id_generation import get_vertex_cell_indices_ids
 
+
+def quadric_generation():
+    pass
+
+
+
+def get_cluster_cell_quadric(vertices = None, indices=None, resolution=None):
+    if vertices is None or indices is None or resolution is None:
+        print("Cluster Cell Quadric calculation requires vertices, indices, and resolution")
+        exit()
+    
+    vertex_cluster_indices, vertex_cluster_ids = get_vertex_cell_indices_ids(vertices=vertices, resolution=resolution)
+
+
+    bbox = utility.bounding_box(vertices) # Makes bounding box
+
+    avg = [(bbox[0][i] + bbox[1][i]) / 2.0 for i in range(3) ]
+    scale = [(bbox[1][i] - bbox[0][i]) for i in range(3) ] # / 2.0
+    mesh_min = bbox[0]
+
+    #print("Min =", mesh_min)
+    #print("Avg =", avg, "  Scale =",scale)
+    pos_verts = []
+    for vert in vertices:
+        pos_verts.append([vert[i] + -mesh_min[i] for i in range(3)])
+    '''
+    x, y, z = zip(*pos_verts)
+    print("Min =", min(x), min(y), min(z))
+    print("Max =", max(x), max(y), max(z))
+    print("Scale = ", scale)
+    '''
+
+    scaled_verts = []
+    for vert in pos_verts:
+        scaled_verts.append([vert[i] * resolution**2 / (scale[i]+0.00001) for i in range(3)])
+
+    '''
+    x, y, z = zip(*scaled_verts)
+    print("Min =", min(x), min(y), min(z))
+    print("Max =", max(x), max(y), max(z))
+    '''
+    vertex_cluster_cell_indices = []
+    vertex_cluster_cell_ids = []
+    for vert in scaled_verts:
+        indices = [vert[i] // resolution for i in range(3)]
+        id = indices[0] + indices[1] * resolution + indices[2] * resolution**2
+
+        vertex_cluster_cell_indices.append(indices)
+        vertex_cluster_cell_ids.append(id)
+
+    if len(vertex_cluster_cell_indices) != len(vertices) or len(vertex_cluster_cell_ids) != len(vertices) :
+        print("Error: Cluster IDs/Indices generated is not same length as vertices input!")
+        exit()
+
+    return vertex_cluster_cell_indices, vertex_cluster_cell_ids
+
+'''
 resolution = 10
 obj_mesh = pywavefront.Wavefront("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj", collect_faces=True)
 vertices = np.array(obj_mesh.vertices, dtype='f4')
@@ -69,3 +127,4 @@ print(output_pos[:5])
 #print(len(output_pos))
 x, y = zip(*output_pos)
 print("Output_pos : min, max =",min(x), min(y), "|",max(x),max(y))
+'''
