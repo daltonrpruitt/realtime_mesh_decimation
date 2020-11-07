@@ -43,16 +43,11 @@ uniform float float_to_int_scaling_factor;
 uniform int resolution;
 uint u_resolution = uint(resolution);
 
-//precision highp float;
-//precision highp int;
-
-
 void main() {
     uint g_id = gl_GlobalInvocationID.z * u_resolution * u_resolution +
                 gl_GlobalInvocationID.y * u_resolution +
                 gl_GlobalInvocationID.x;  // Equivalent to cell ID, too
     int output_x = int(gl_GlobalInvocationID.x); 
-    ivec2 size = imageSize(cluster_quadric_map);
     
     // for each triangle
     for (int i=0; i < NUM_TRIS;  i++) {
@@ -98,7 +93,7 @@ void main() {
 
         // Check individual vertices and add relevant data
         for(uint v=0; v < 3; v++){
-            ivec3 i_vert = ivec3(verts[0] * float_to_int_scaling_factor); // Have to scale "appropriately"
+            ivec3 i_vert = ivec3(verts[v] * float_to_int_scaling_factor); // Have to scale "appropriately"
 
             if(vert_cluster_ids[idxs[v]] == g_id){
                 imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 0), i_vert.x); 
