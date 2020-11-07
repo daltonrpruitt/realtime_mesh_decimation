@@ -10,25 +10,11 @@
 layout(local_size_x=1, local_size_y=1, local_size_z=1) in;
 
 
-layout(std430, binding=0) buffer inVerts
-{
-    vec3 vertices[];
-};
-
-layout(std430, binding=1) buffer inIndices
-{
-    uvec3 indices[];
-};
-
-layout(std430, binding=2) buffer vert_cluster_id
-{
-    uint vert_cluster_ids[];
-};
-
-layout(r32i, binding = 4) uniform iimage2D cluster_quadric_map;
-layout(rgba32f, binding = 5) uniform image2D cluster_vertex_position;
+layout(r32i, binding = 0) uniform iimage2D cluster_quadric_map;
+layout(rgba32f, binding = 1) uniform image1D cluster_vertex_position;
 
 float determinant_minimum = 1.0E-10;
+uniform float float_to_int_scaling_factor;
 uniform int resolution;
 uint u_resolution = uint(resolution);
 
@@ -37,24 +23,47 @@ void main() {
     uint g_id = gl_GlobalInvocationID.z * u_resolution * u_resolution +
                 gl_GlobalInvocationID.y * u_resolution +
                 gl_GlobalInvocationID.x;  // Equivalent to cell ID, too
-    ivec2 output_index = ivec2(gl_GlobalInvocationID.xy); 
+    int output_x = int(gl_GlobalInvocationID.x); 
     
 
     // Get values for error quadric matrix (assemble)
+    float a2 = float(imageLoad(cluster_quadric_map, ivec2(output_x, 4))) / float_to_int_scaling_factor ;    // 4
+    float ab = float(imageLoad(cluster_quadric_map, ivec2(output_x, 5))) / float_to_int_scaling_factor ;    // 5
+    float ac = float(imageLoad(cluster_quadric_map, ivec2(output_x, 6))) / float_to_int_scaling_factor ;    // 6
+    float ad = float(imageLoad(cluster_quadric_map, ivec2(output_x, 7))) / float_to_int_scaling_factor ;    // 7
+    float b2 = float(imageLoad(cluster_quadric_map, ivec2(output_x, 8))) / float_to_int_scaling_factor ;    // 8
+    float bc = float(imageLoad(cluster_quadric_map, ivec2(output_x, 9))) / float_to_int_scaling_factor ;    // 9
+    float bd = float(imageLoad(cluster_quadric_map, ivec2(output_x, 10))) / float_to_int_scaling_factor ;   // 10
+    float c2 = float(imageLoad(cluster_quadric_map, ivec2(output_x, 11))) / float_to_int_scaling_factor ;   // 11
+    float cd = float(imageLoad(cluster_quadric_map, ivec2(output_x, 12))) / float_to_int_scaling_factor ;   // 12
+    float d2 = float(imageLoad(cluster_quadric_map, ivec2(output_x, 13))) / float_to_int_scaling_factor ;   // 13
+
+    mat4 error_quadric = mat4( a2, ab, ac, ad, 
+                          ab, b2, bc, bd, 
+                          ac, bc, c2, cd, 
+                          ad, bd, cd, d2);
 
 
     // Compute optimal vertex position from error quadric matrix (invert)
+    mat4 inv = inverse(error_quadric);
+
+    vec3 cluster_vert = (inv * vec4(vec3(0), 1.0)).xyz;
 
 
     // Check if "singular" (determinant < determinant_minimum)
-
+    if (determinant(inv) < determinant_minimum) {
         // Use avg vertex position if so
+        float avg_x = float(imageLoad(cluster_quadric_map, ivec2(output_x, 0))) / float_to_int_scaling_factor ;    // 0
+        float avg_y = float(imageLoad(cluster_quadric_map, ivec2(output_x, 1))) / float_to_int_scaling_factor ;    // 1
+        float avg_z = float(imageLoad(cluster_quadric_map, ivec2(output_x, 2))) / float_to_int_scaling_factor ;    // 2
+        float count = float(imageLoad(cluster_quadric_map, ivec2(output_x, 3))) / float_to_int_scaling_factor ;    // 3
 
-        // Use computed vertex position otherwise
+        cluster_vert = vec3(avg_x, avg_y, avg_z) / count;
+    }
+    // Use computed vertex position otherwise (leave as it was)
+
 
     // Save position to output
-
-
-
-    }
+    imageStore(cluster_vertex_position, output_x, vec4(cluster_vert, -1.0));
+    
 }
