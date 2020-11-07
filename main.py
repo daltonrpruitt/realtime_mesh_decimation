@@ -30,7 +30,7 @@ def source(uri, consts):
     return content
 
 debug = False
-resolution = 2
+resolution = 3
 float_to_int_scaling_factor = 2**13
 
 
@@ -170,12 +170,14 @@ print("Running SP Compute Shader Took {:.5f} s".format(time.time()-st))
 sp_output_vertex_positions = np.frombuffer(sp_cluster_vertex_positions.read(),dtype=np.float32)
 sp_output_vertex_positions = np.reshape(sp_output_vertex_positions, newshape=(image_shape[0],4), order="C")
 
-if debug:
-    print(sp_output_vertex_positions.shape)
-    print(sp_output_vertex_positions[resolution:2*resolution,:])
-    print("Min,max of x:",min(sp_output_vertex_positions[:,0]),",",max(sp_output_vertex_positions[:,0]))
-    print("Min,max of y:",min(sp_output_vertex_positions[:,1]),",",max(sp_output_vertex_positions[:,1]))
-    print("Min,max of z:",min(sp_output_vertex_positions[:,2]),",",max(sp_output_vertex_positions[:,2]))
+if True:
+    debug_vertex_positions = sp_output_vertex_positions[sp_output_vertex_positions[:,3] > -1.0]
+    print("Without empty cells:", sp_output_vertex_positions.shape,"-->",debug_vertex_positions.shape)
+    print("\tNon-empty cells:", str(round(debug_vertex_positions.shape[0]/sp_output_vertex_positions.shape[0]*100,2))+"%")
+    print("Min,max of x:",min(debug_vertex_positions[:,0]),",",max(debug_vertex_positions[:,0]))
+    print("Min,max of y:",min(debug_vertex_positions[:,1]),",",max(debug_vertex_positions[:,1]))
+    print("Min,max of z:",min(debug_vertex_positions[:,2]),",",max(debug_vertex_positions[:,2]))
+    print(debug_vertex_positions[:,:10])
 
 exit()
 

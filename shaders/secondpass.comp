@@ -27,7 +27,7 @@ void main() {
     int output_x = int(gl_GlobalInvocationID.x); 
 
     float count = float(imageLoad(cluster_quadric_map, ivec2(output_x, 3))) / float_to_int_scaling_factor ;    // 3
-    if (count < 1.0e-3) {
+    if (count < 1.0e-1) {
         imageStore(cluster_vertex_position, ivec2(output_x,0), vec4(-1.0));
         return;
     }
