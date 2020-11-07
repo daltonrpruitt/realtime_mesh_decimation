@@ -31,7 +31,7 @@ def source(uri, consts):
 
 
 resolution = 2
-float_to_int_scaling_factor = 32768
+float_to_int_scaling_factor = 100000
 
 
 st = time.time()
@@ -80,8 +80,9 @@ cluster_id_buffer.bind_to_storage_buffer(binding=2)
 
 #print(np.reshape(np.frombuffer(vertex_buffer.read(),dtype="f4"),newshape=(len(vertices),3))[:5])
 
+image_shape = (size, 14)
 # Output "image" creation
-output_image = fp_context.texture(size=(size,14), components=1, dtype="i4")
+output_image = fp_context.texture(size=image_shape, components=1, dtype="i4")
 output_image.bind_to_image(4, read=True, write=True)
 '''output_images = []
 for i in range(4):
@@ -101,10 +102,14 @@ first_pass_comp_shader.run(size, 1, 1)
 print("Running FP Compute Shader Took {:.5f} s".format(time.time()-st))
 
 # Output "image" creation
-output_data = np.reshape(np.frombuffer(output_image.read(),dtype=np.int32), newshape=(size, 14)) # / float_to_int_scaling_factor
+output_data = np.frombuffer(output_image.read(),dtype=np.int32)
+print(output_data[:28])
+output_data = np.reshape(output_data, newshape=image_shape, order="F") # / float_to_int_scaling_factor
 print(output_data[:,:])
 print(output_data[:,:4]/ float_to_int_scaling_factor)
+print()
 print(sum(output_data[:,3] / float_to_int_scaling_factor))
+print("Actual num of tris:", len(indices))
 exit()
 
 
