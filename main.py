@@ -29,8 +29,8 @@ def source(uri, consts):
         content = content.replace(f"%%{key}%%", str(value))
     return content
 
-
-resolution = 2
+debug = False
+resolution = 10
 float_to_int_scaling_factor = 100000
 
 
@@ -103,49 +103,40 @@ print("Running FP Compute Shader Took {:.5f} s".format(time.time()-st))
 
 # Output "image" creation
 output_data = np.frombuffer(output_image.read(),dtype=np.int32)
-print(output_data[:28])
+#print(output_data[:28])
 output_data = np.reshape(output_data, newshape=image_shape, order="F") # / float_to_int_scaling_factor
-print(output_data[:,:])
-print(output_data[:,:4]/ float_to_int_scaling_factor)
-print()
-print(sum(output_data[:,3] / float_to_int_scaling_factor))
-print("Actual num of tris:", len(indices))
-exit()
+data[:resolution,:4]/ float_to_int_scaling_factor)
+if debug:
+    print(sum(output_data[:,3] / float_to_int_scaling_factor))
+    print("Actual num of tris:", len(indices))
 
-
-
-
-'''for i in range(1,4):
-    output_data = np.concatenate(
-        [ output_data,
-        np.reshape(np.frombuffer(output_images[i].read(),dtype=np.int32), newshape=(size, 1)) ],
-        axis = 1)'''
 
 output_array = np.array(output_data, dtype=np.float32)
-
+'''
 iter, span = 0, 20
-'''while True:
+while True:
     print(iter,"to",iter+span, ":", output_array[iter:iter+span])
     iter+=span
     if input("Enter nothing to continue:") != "":
         break'''
-print(output_array[:2][:])
-output_sum_vertices = output_array[:,:3]
-print(output_sum_vertices.shape)
-output_count_vertices = output_array[:,3]
+if debug:
+    print(output_array[:2][:])
+    output_sum_vertices = output_array[:,:3]
+    print(output_sum_vertices.shape)
+    output_count_vertices = output_array[:,3]
+    #print(output_array[35:40,:4])
+    #print(output_sum_vertices)
+    avg_vertices = []
+    for i in range(len(output_sum_vertices)):
+        if output_count_vertices[i] < 0.001:
+            avg_vertices.append([-1, -1, -1])
+            continue
+        avg_vertices.append([output_sum_vertices[i][j]/output_count_vertices[i] for j in range(3)])
+    #avg_vertices = output_sum_vertices/output_count_vertices
+    print("Avg Vertex with max X:",max(avg_vertices))
 
-print(output_array[35:40,:4])
-#print(output_sum_vertices)
-exit()
-avg_vertices = np.operator(output_sum_vertices/output_count_vertices,)
-print(np.max(output_average_vertices,axis=(0,1)))
-print(output_array) # 
-print(np.sum(output_array, axis = 0)) # / 1000000
 
-print(output_data.shape, output_data.size)
-
-
-
+# End of First Pass
 
 exit()
 ##########################################
