@@ -7,16 +7,13 @@ def get_vertex_cell_indices_ids(vertices = None, resolution=None):
         print("Cell ID generation requires both vertices and resolution")
         exit()
     bbox = utility.bounding_box(vertices) # Makes bounding box
-
+    pos_verts = utility.positive_vertices(vertices,bbox_in=bbox)
     avg = [(bbox[0][i] + bbox[1][i]) / 2.0 for i in range(3) ]
     scale = [(bbox[1][i] - bbox[0][i]) for i in range(3) ] # / 2.0
     mesh_min = bbox[0]
 
     #print("Min =", mesh_min)
     #print("Avg =", avg, "  Scale =",scale)
-    pos_verts = []
-    for vert in vertices:
-        pos_verts.append([vert[i] + -mesh_min[i] for i in range(3)])
     '''
     x, y, z = zip(*pos_verts)
     print("Min =", min(x), min(y), min(z))
