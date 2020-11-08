@@ -30,7 +30,7 @@ def source(uri, consts):
     return content
 
 debug = False
-resolution = 3
+resolution = 2
 float_to_int_scaling_factor = 2**13
 
 
@@ -177,7 +177,7 @@ if True:
     print("Min,max of x:",min(debug_vertex_positions[:,0]),",",max(debug_vertex_positions[:,0]))
     print("Min,max of y:",min(debug_vertex_positions[:,1]),",",max(debug_vertex_positions[:,1]))
     print("Min,max of z:",min(debug_vertex_positions[:,2]),",",max(debug_vertex_positions[:,2]))
-    print(debug_vertex_positions[:,:10])
+    print(debug_vertex_positions[:resolution*4,:3])
 
 exit()
 
