@@ -44,10 +44,14 @@ void main() {
     float cd = float(imageLoad(cluster_quadric_map, ivec2(output_x, 12))) / float_to_int_scaling_factor  / count;   // 12
     float d2 = float(imageLoad(cluster_quadric_map, ivec2(output_x, 13))) / float_to_int_scaling_factor  / count;   // 13
 
-    mat4 error_quadric = mat4(  a2, ab, ac, ad, 
-                                ab, b2, bc, bd, 
-                                ac, bc, c2, cd, 
-                                ad, bd, cd, d2);
+
+
+    // Math from p.3/8 of "Surface Simplification Using Quadric Error Metrics." https://people.eecs.berkeley.edu/~jrs/meshpapers/GarlandHeckbert2.pdf
+    // NOTE: GLSL is column-major.... (this gave me issues)
+    mat4 error_quadric = mat4(  a2, ab, ac, 0., 
+                                ab, b2, bc, 0., 
+                                ac, bc, c2, 0., 
+                                ad, bd, cd, 1.0);
 
 
     // Compute optimal vertex position from error quadric matrix (invert)
