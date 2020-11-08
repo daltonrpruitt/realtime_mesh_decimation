@@ -26,17 +26,8 @@ layout(std430, binding=2) buffer vert_cluster_id
     uint vert_cluster_ids[];
 };
 
-//uniform vec3 inIndices[NUM_TRIS]; // NUM_TRIS
 
-/*layout (std430, binding = 3) buffer quadric_map
-{
-    vec4 quadric_first_4[1];
-    vec4 quadric_next_3_plus_1[1];
-    vec4 quadric_last_2[1];
-};*/
-
-
-layout(r32i, binding = 4) uniform image2D cluster_quadric_map;
+layout(r32f, binding = 4) uniform image2D cluster_quadric_map;
 
 uniform float float_to_int_scaling_factor;
 uniform int resolution;
@@ -49,7 +40,7 @@ void main() {
     int output_x = int(gl_GlobalInvocationID.x); 
     
     // for each triangle
-    for (int i=0; i < 1;  i++) {
+    for (int i=0; i < NUM_TRIS;  i++) {
     
         
         uvec3 idxs = indices[i];
