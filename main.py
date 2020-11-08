@@ -118,7 +118,7 @@ while True:
     iter+=span
     if input("Enter nothing to continue:") != "":
         break'''
-if debug:
+if True:
     print(output_array[:2][:])
     output_sum_vertices = output_array[:,:3]
     print(output_sum_vertices.shape)
@@ -131,11 +131,11 @@ if debug:
                                 buffer=np.array([output_sum_vertices[i][j]/output_count_vertices[i] for j in range(3)]),
                                 dtype=np.float32)))
     avg_vertices = avg_vertices[1:]
-    print("Avg. Vertices:", avg_vertices.shape)
+    print("Avg. Vertices from FP:", avg_vertices.shape)
     print("min,max x:",min(avg_vertices[:,0]), max(avg_vertices[:,0]))
     print("min,max y:",min(avg_vertices[:,1]), max(avg_vertices[:,1]))
     print("min,max z:",min(avg_vertices[:,2]), max(avg_vertices[:,2]))
-
+    print(avg_vertices[:resolution*4,:3])
 
 # End of First Pass
 
@@ -172,6 +172,7 @@ sp_output_vertex_positions = np.reshape(sp_output_vertex_positions, newshape=(im
 
 if True:
     debug_vertex_positions = sp_output_vertex_positions[sp_output_vertex_positions[:,3] > -1.0]
+    print("Second Pass cluster vertex positions:", sp_output_vertex_positions.shape,"-->",debug_vertex_positions.shape)
     print("Without empty cells:", sp_output_vertex_positions.shape,"-->",debug_vertex_positions.shape)
     print("\tNon-empty cells:", str(round(debug_vertex_positions.shape[0]/sp_output_vertex_positions.shape[0]*100,2))+"%")
     print("Min,max of x:",min(debug_vertex_positions[:,0]),",",max(debug_vertex_positions[:,0]))
