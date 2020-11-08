@@ -1,0 +1,119 @@
+#version 430
+
+#define X %%X%%
+#define Y %%Y%%
+#define Z %%Z%%
+
+#define NUM_VERTS %%NUM_VERTS%%
+#define NUM_TRIS %%NUM_TRIS%%
+
+// Workgroup Sizes
+layout(local_size_x=1, local_size_y=1, local_size_z=1) in;
+
+
+layout(std430, binding=0) buffer inVerts
+{
+    vec3 vertices[];
+};
+
+layout(std430, binding=1) buffer inIndices
+{
+    uvec3 indices[];
+};
+
+layout(std430, binding=2) buffer vert_cluster_id
+{
+    uint vert_cluster_ids[];
+};
+
+//uniform vec3 inIndices[NUM_TRIS]; // NUM_TRIS
+
+/*layout (std430, binding = 3) buffer quadric_map
+{
+    vec4 quadric_first_4[1];
+    vec4 quadric_next_3_plus_1[1];
+    vec4 quadric_last_2[1];
+};*/
+
+
+layout(r32i, binding = 4) uniform image2D cluster_quadric_map;
+
+uniform float float_to_int_scaling_factor;
+uniform int resolution;
+uint u_resolution = uint(resolution);
+
+void main() {
+    uint g_id = gl_GlobalInvocationID.z * u_resolution * u_resolution +
+                gl_GlobalInvocationID.y * u_resolution +
+                gl_GlobalInvocationID.x;  // Equivalent to cell ID, too
+    int output_x = int(gl_GlobalInvocationID.x); 
+    
+    // for each triangle
+    for (int i=0; i < 1;  i++) {
+    
+        
+        uvec3 idxs = indices[i];
+
+        // Only compute if in current cluster
+        if (vert_cluster_ids[idxs[0]] != g_id && vert_cluster_ids[idxs[1]] != g_id && vert_cluster_ids[idxs[2]] != g_id ){
+            continue;
+        }
+
+    
+        
+        // At least one vertex in current cell
+        vec3 verts[3] = {vertices[idxs[0]], vertices[idxs[1]], vertices[idxs[2]]};
+
+        // Compute quadric for plane
+        vec3 normal = normalize(cross(verts[1]-verts[0], verts[2]-verts[0]));
+        float d = -dot(verts[0], normal);
+
+        // Quadric Matrix Components
+        /*Layout of the data for each cell (all sums)
+        *  First 4  : sum_vertex_position [x, y, z], vertex_count (together -> average vertex position)
+        *  Next  4  : a^2, ab, ac, ad 
+        *  Next  4  : b^2, bc, bd, c^2
+        *  Last  2  : cd, d^2 (2 only)
+        *  Currently represented with a N x 14 array
+        */
+
+        int a2 = int(normal.x * normal.x * float_to_int_scaling_factor);    // 4
+        int ab = int(normal.x * normal.y * float_to_int_scaling_factor);    // 5
+        int ac = int(normal.x * normal.z * float_to_int_scaling_factor);    // 6
+        int ad = int(normal.x * d        * float_to_int_scaling_factor);    // 7
+        int b2 = int(normal.y * normal.y * float_to_int_scaling_factor);    // 8
+        int bc = int(normal.y * normal.z * float_to_int_scaling_factor);    // 9
+        int bd = int(normal.y * d        * float_to_int_scaling_factor);    // 10
+        int c2 = int(normal.z * normal.z * float_to_int_scaling_factor);    // 11
+        int cd = int(normal.z * d        * float_to_int_scaling_factor);    // 12
+        int d2 = int(d        * d        * float_to_int_scaling_factor);    // 13
+
+
+
+        // Check individual vertices and add relevant data
+        for(uint v=0; v < 3; v++){
+            ivec3 i_vert = ivec3(verts[v] * float_to_int_scaling_factor); // Have to scale "appropriately"
+
+            if(vert_cluster_ids[idxs[v]] == g_id){
+                imageStore(cluster_quadric_map, ivec2(output_x, 0), i_vert.x + imageLoad(cluster_quadric_map, ivec2(output_x, 0))); 
+                imageStore(cluster_quadric_map, ivec2(output_x, 1), i_vert.y + imageLoad(cluster_quadric_map, ivec2(output_x, 1))); 
+                
+                
+                
+                imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 1), i_vert.y); 
+                imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 2), i_vert.z); 
+                imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 3), int(1.0 * float_to_int_scaling_factor));  // Counting vertices in this cell (for average position)
+                imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 4), a2); 
+                imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 5), ab); 
+                imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 6), ac); 
+                imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 7), ad); 
+                imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 8), b2); 
+                imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 9), bc); 
+                imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 10), bd); 
+                imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 11), c2); 
+                imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 12), cd); 
+                imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 13), d2); 
+            }
+        }
+    }
+}
