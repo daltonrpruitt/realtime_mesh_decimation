@@ -63,9 +63,9 @@ void main() {
     // Check if "singular" (determinant < determinant_minimum)
     if ( determinant(inv) < determinant_minimum) { // true) {
         // Use avg vertex position if so
-        float avg_x = float(imageLoad(cluster_quadric_map, ivec2(output_x, 0))) / float_to_int_scaling_factor ;    // 0
-        float avg_y = float(imageLoad(cluster_quadric_map, ivec2(output_x, 1))) / float_to_int_scaling_factor ;    // 1
-        float avg_z = float(imageLoad(cluster_quadric_map, ivec2(output_x, 2))) / float_to_int_scaling_factor ;    // 2
+        float sum_x = float(imageLoad(cluster_quadric_map, ivec2(output_x, 0))) / float_to_int_scaling_factor ;    // 0
+        float sum_y = float(imageLoad(cluster_quadric_map, ivec2(output_x, 1))) / float_to_int_scaling_factor ;    // 1
+        float sum_z = float(imageLoad(cluster_quadric_map, ivec2(output_x, 2))) / float_to_int_scaling_factor ;    // 2
         //float count = float(imageLoad(cluster_quadric_map, ivec2(output_x, 3))) / float_to_int_scaling_factor ;    // 3
 
         cluster_vert = vec3(avg_x, avg_y, avg_z) / count;
