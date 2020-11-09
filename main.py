@@ -30,7 +30,7 @@ def source(uri, consts):
     return content
 
 debug = False
-resolution = 2
+resolution = 10
 float_to_int_scaling_factor = 2**13
 
 
@@ -40,7 +40,10 @@ obj_mesh = pywavefront.Wavefront("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.
 print("Loading mesh took {:.2f} s".format(time.time()-st))
 #vertices = np.array(obj_mesh.vertices, dtype='f4')
 #bbox = utility.bounding_box(vertices) # Makes bounding box
+
+# indices are a list of groups of 3 indices into the vertex array, each group representing 1 triangle
 indices = np.array(obj_mesh.mesh_list[0].faces)
+# Using the positive transformed version for ease of distinguishing valid points
 vertices = np.array(utility.positive_vertices(obj_mesh.vertices),dtype="f4")
 if debug:
     print("Input Vertices:")
@@ -71,7 +74,7 @@ size = resolution**3
 # Standalone since not doing any rendering yet
 fp_context = moderngl.create_standalone_context(require=430)
 first_pass_comp_shader = fp_context.compute_shader(source("shaders/firstpass.comp", shader_constants))
-print("Successfully compiled compute shader!")
+print("Successfully compiled 1st-pass compute shader!")
 
 
 # Create/bind vertex/index data
@@ -141,9 +144,10 @@ if True:
 
 ##########################################
 
+# Second Pass
 sp_context = moderngl.create_standalone_context(require=430)
 second_pass_comp_shader = sp_context.compute_shader(source("shaders/secondpass.comp", shader_constants))
-print("Successfully compiled second pass compute shader!")
+print("Successfully compiled 2nd-pass compute shader!")
 
 
 sp_cluster_quadric_map = sp_context.texture(size=image_shape,components=1, 
@@ -180,15 +184,16 @@ if True:
     print("Min,max of z:",min(debug_vertex_positions[:,2]),",",max(debug_vertex_positions[:,2]))
     print(debug_vertex_positions[:resolution*4,:3])
 
-exit()
 
 # End of Second Pass
 
 ##########################################
+
 # Third Pass
 tp_context = moderngl.create_standalone_context(require=430)
-tp_compute_shader = tp_context.compute_shader(source("shaders/thirdpass.comp", shader_constants))
-print("Successfully compiled third pass compute shader!")
+third_pass_comp_shader = tp_context.compute_shader(source("shaders/thirdpass.comp", shader_constants))
+print("Successfully compiled 3rd-pass compute shader!")
+
 
 
 sp_cluster_quadric_map = sp_context.texture(size=image_shape,components=1, 
@@ -196,6 +201,9 @@ sp_cluster_quadric_map = sp_context.texture(size=image_shape,components=1,
 if debug:
     print(np.frombuffer(sp_cluster_quadric_map.read(),dtype=np.int32)[55*14:57*14])
     print(output_data_original[55*14:57*14])
+
+
+### End of Third Pass
 
 
 

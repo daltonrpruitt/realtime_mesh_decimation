@@ -1,0 +1,64 @@
+#version 430
+
+#define X %%X%%
+#define Y %%Y%%
+#define Z %%Z%%
+
+#define NUM_VERTS %%NUM_VERTS%%
+#define NUM_TRIS %%NUM_TRIS%%
+
+// Workgroup Sizes
+layout(local_size_x=1, local_size_y=1, local_size_z=1) in;
+
+
+layout(std430, binding=0) buffer inVerts
+{
+    vec3 vertices[];
+};
+
+layout(std430, binding=1) buffer inIndices
+{
+    uvec3 indices[];
+};
+
+layout(std430, binding=2) buffer vert_cluster_id
+{
+    uint vert_cluster_ids[];
+};
+
+layout(rgba32f, binding = 1) uniform image2D cluster_vertex_position;
+layout(rgba32i, binding = 2) uniform writeonly iimage2D simplified_vertex_indices;
+
+uniform int resolution;
+uint u_resolution = uint(resolution);
+
+void main() {
+    int id = int(gl_GlobalInvocationID.z * u_resolution * u_resolution +
+                    gl_GlobalInvocationID.y * u_resolution +
+                    gl_GlobalInvocationID.x);  // Equivalent to cell ID, too
+    //int id = int(gl_GlobalInvocationID.x); 
+    
+    // get triangle
+    uvec3 idxs = indices[id];
+    vec3 verts[3] = {vertices[idxs[0]], vertices[idxs[1]], vertices[idxs[2]]};
+
+    // Only output triangle if in current cluster
+    if (vert_cluster_ids[idxs[0]] == vert_cluster_ids[idxs[1]] || 
+        vert_cluster_ids[idxs[0]] == vert_cluster_ids[idxs[2]]  ||
+        vert_cluster_ids[idxs[1]] == vert_cluster_ids[idxs[2]]){
+            // record error because culled
+            imageStore(simplified_vertex_indices, ivec2(id, 0), ivec4(-1));
+    } else {
+        /*
+        vec3 v0 = imageLoad(cluster_vertex_position, ivec2(idxs[0],0)).xyz;
+        vec3 v1 = imageLoad(cluster_vertex_position, ivec2(idxs[1],0)).xyz;
+        vec3 v2 = imageLoad(cluster_vertex_position, ivec2(idxs[2],0)).xyz;
+        */
+
+        // Record the indices into the cluster simplified vertices
+        imageStore(simplified_vertex_indices, ivec2(id, 0), ivec4(idxs.xyz, 0));
+
+    }
+    
+        
+}
