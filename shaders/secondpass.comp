@@ -33,16 +33,16 @@ void main() {
     }
 
     // Get values for error quadric matrix (assemble)
-    float a2 = float(imageLoad(cluster_quadric_map, ivec2(output_x, 4))) / float_to_int_scaling_factor / count;    // 4
-    float ab = float(imageLoad(cluster_quadric_map, ivec2(output_x, 5))) / float_to_int_scaling_factor  / count;    // 5
-    float ac = float(imageLoad(cluster_quadric_map, ivec2(output_x, 6))) / float_to_int_scaling_factor  / count;    // 6
-    float ad = float(imageLoad(cluster_quadric_map, ivec2(output_x, 7))) / float_to_int_scaling_factor  / count;    // 7
-    float b2 = float(imageLoad(cluster_quadric_map, ivec2(output_x, 8))) / float_to_int_scaling_factor  / count;    // 8
-    float bc = float(imageLoad(cluster_quadric_map, ivec2(output_x, 9))) / float_to_int_scaling_factor  / count;    // 9
-    float bd = float(imageLoad(cluster_quadric_map, ivec2(output_x, 10))) / float_to_int_scaling_factor  / count;   // 10
-    float c2 = float(imageLoad(cluster_quadric_map, ivec2(output_x, 11))) / float_to_int_scaling_factor  / count;   // 11
-    float cd = float(imageLoad(cluster_quadric_map, ivec2(output_x, 12))) / float_to_int_scaling_factor  / count;   // 12
-    float d2 = float(imageLoad(cluster_quadric_map, ivec2(output_x, 13))) / float_to_int_scaling_factor  / count;   // 13
+    float a2 = float(imageLoad(cluster_quadric_map, ivec2(output_x, 4))) / float_to_int_scaling_factor; // 4     / count;    
+    float ab = float(imageLoad(cluster_quadric_map, ivec2(output_x, 5))) / float_to_int_scaling_factor;  // 5      / count;   
+    float ac = float(imageLoad(cluster_quadric_map, ivec2(output_x, 6))) / float_to_int_scaling_factor;  // 6      / count;   
+    float ad = float(imageLoad(cluster_quadric_map, ivec2(output_x, 7))) / float_to_int_scaling_factor;  // 7      / count;   
+    float b2 = float(imageLoad(cluster_quadric_map, ivec2(output_x, 8))) / float_to_int_scaling_factor;  // 8      / count;   
+    float bc = float(imageLoad(cluster_quadric_map, ivec2(output_x, 9))) / float_to_int_scaling_factor;  // 9      / count;   
+    float bd = float(imageLoad(cluster_quadric_map, ivec2(output_x, 10))) / float_to_int_scaling_factor; // 10       / count;  
+    float c2 = float(imageLoad(cluster_quadric_map, ivec2(output_x, 11))) / float_to_int_scaling_factor; // 11       / count;  
+    float cd = float(imageLoad(cluster_quadric_map, ivec2(output_x, 12))) / float_to_int_scaling_factor; // 12       / count;  
+    float d2 = float(imageLoad(cluster_quadric_map, ivec2(output_x, 13))) / float_to_int_scaling_factor; // 13       / count;  
 
 
 
