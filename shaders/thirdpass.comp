@@ -26,8 +26,9 @@ layout(std430, binding=2) buffer vert_cluster_id
     uint vert_cluster_ids[];
 };
 
-//layout(rgba32f, binding = 0) uniform image2D cluster_vertex_position;
+layout(rgba32f, binding = 0) uniform image2D cluster_vertex_position;
 layout(rgba32i, binding = 1) uniform writeonly iimage2D simplified_vertex_indices;
+layout(rgba32f, binding = 2) uniform writeonly image2D simplified_tris;
 
 uniform int resolution;
 uint u_resolution = uint(resolution);
@@ -47,7 +48,12 @@ void main() {
         vert_cluster_ids[idxs[0]] == vert_cluster_ids[idxs[2]]  ||
         vert_cluster_ids[idxs[1]] == vert_cluster_ids[idxs[2]]){
             // record error because culled
+            //Indices
             imageStore(simplified_vertex_indices, ivec2(id, 0), ivec4(-1));
+            // Complete Tris 
+            imageStore(simplified_tris, ivec2(id, 0), vec4(-1));
+            imageStore(simplified_tris, ivec2(id, 1), vec4(-1));
+            imageStore(simplified_tris, ivec2(id, 2), vec4(-1));
     } else {
         /*
         vec3 v0 = imageLoad(cluster_vertex_position, ivec2(idxs[0],0)).xyz;
@@ -62,6 +68,16 @@ void main() {
                             vert_cluster_ids[idxs.z],
                             1)
                    );
+
+        imageStore(simplified_tris, ivec2(id, 0),
+                 imageLoad(cluster_vertex_position, ivec2(vert_cluster_ids[idxs.x],0))
+        );
+       imageStore(simplified_tris, ivec2(id, 1),
+                 imageLoad(cluster_vertex_position, ivec2(vert_cluster_ids[idxs.y],0))
+        );
+       imageStore(simplified_tris, ivec2(id, 2),
+                 imageLoad(cluster_vertex_position, ivec2(vert_cluster_ids[idxs.z],0))
+        );
 
     }
     
