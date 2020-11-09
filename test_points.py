@@ -1,10 +1,11 @@
 import utility
 import pywavefront
 import numpy as np
+from mpl_toolkits import mplot3d
+import matplotlib.pyplot as plt
 
 def test():
-    from mpl_toolkits import mplot3d
-    import matplotlib.pyplot as plt
+    
     verts = [
                 [5.241108,  4.804801,  5.1191983],
                 [6.0089836, 6.2341,    5.86783  ],

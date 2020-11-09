@@ -1,3 +1,8 @@
+/* First pass shader (integer version)
+*
+*/
+
+
 #version 430
 
 #define X %%X%%
@@ -49,6 +54,12 @@ void main() {
                 gl_GlobalInvocationID.x;  // Equivalent to cell ID, too
     int output_x = int(gl_GlobalInvocationID.x); 
     
+    /*
+    imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 0), int(float(output_x)*float_to_int_scaling_factor)); 
+    imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 1), int(float(output_x)*float_to_int_scaling_factor)); 
+    return;
+    */
+
     // for each triangle
     for (int i=0; i < NUM_TRIS;  i++) {
     
