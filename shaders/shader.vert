@@ -1,4 +1,4 @@
-#version 330
+#version 430
 uniform struct BoundingBox {
     vec3 min;
     vec3 max;
@@ -11,5 +11,5 @@ in vec3 inVert;
 void main() {
     vec3 avg = (bbox.min + bbox.max )/ 2.0;
     vec3 scale = (bbox.max - bbox.min)/1.5;
-    gl_Position = vec4((inVert - avg)/scale, 0.0);
+    gl_Position = vec4((inVert - avg)/scale, 1.0);
 }

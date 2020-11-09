@@ -30,7 +30,7 @@ def source(uri, consts):
     return content
 
 debug = False
-resolution = 10
+resolution = 25
 float_to_int_scaling_factor = 2**13
 
 
@@ -39,12 +39,12 @@ st = time.time()
 obj_mesh = pywavefront.Wavefront("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj", collect_faces=True)
 print("Loading mesh took {:.2f} s".format(time.time()-st))
 #vertices = np.array(obj_mesh.vertices, dtype='f4')
-#bbox = utility.bounding_box(vertices) # Makes bounding box
 
 # indices are a list of groups of 3 indices into the vertex array, each group representing 1 triangle
 indices = np.array(obj_mesh.mesh_list[0].faces)
 # Using the positive transformed version for ease of distinguishing valid points
 vertices = np.array(utility.positive_vertices(obj_mesh.vertices),dtype="f4")
+bbox = utility.bounding_box(vertices) # Makes bounding box
 if debug:
     print("Input Vertices:")
     print("\tMin,max of x:",min(vertices[:,0]),",",max(vertices[:,0]))
@@ -56,7 +56,7 @@ vertex_cluster_indices, vertex_cluster_ids = get_vertex_cell_indices_ids(vertice
 print("Generating vertex cluster indicies and IDs took {:.2f} s".format(time.time()-st))
 vertex_cluster_ids = np.array(vertex_cluster_ids, dtype=np.int32)
 
-print(vertex_cluster_ids[:30])
+#print(vertex_cluster_ids[:30])
 print("No. of Tris:", len(indices))
 
 shader_constants = {
@@ -121,7 +121,7 @@ while True:
     iter+=span
     if input("Enter nothing to continue:") != "":
         break'''
-if True:
+if debug:
     print(output_array[:2][:])
     output_sum_vertices = output_array[:,:3]
     print(output_sum_vertices.shape)
@@ -170,11 +170,12 @@ st = time.time()
 second_pass_comp_shader.run(size, 1, 1)
 print("Running SP Compute Shader Took {:.5f} s".format(time.time()-st))
 
-# Second Pass Output "image" reading
-sp_output_vertex_positions = np.frombuffer(sp_cluster_vertex_positions.read(),dtype=np.float32)
-sp_output_vertex_positions = np.reshape(sp_output_vertex_positions, newshape=(image_shape[0],4), order="C")
 
-if True:
+# Second Pass Output "image" reading
+sp_output_vertex_positions_original = np.frombuffer(sp_cluster_vertex_positions.read(),dtype=np.float32)
+sp_output_vertex_positions = np.reshape(sp_output_vertex_positions_original, newshape=(image_shape[0],4), order="C")
+
+if debug:
     debug_vertex_positions = sp_output_vertex_positions[sp_output_vertex_positions[:,3] > -1.0]
     print("Second Pass cluster vertex positions:", sp_output_vertex_positions.shape,"-->",debug_vertex_positions.shape)
     print("Without empty cells:", sp_output_vertex_positions.shape,"-->",debug_vertex_positions.shape)
@@ -183,7 +184,7 @@ if True:
     print("Min,max of y:",min(debug_vertex_positions[:,1]),",",max(debug_vertex_positions[:,1]))
     print("Min,max of z:",min(debug_vertex_positions[:,2]),",",max(debug_vertex_positions[:,2]))
     print(debug_vertex_positions[:resolution*4,:3])
-
+sp_simplified_vertex_positions_only = sp_output_vertex_positions[:,:3]
 
 # End of Second Pass
 
@@ -195,18 +196,45 @@ third_pass_comp_shader = tp_context.compute_shader(source("shaders/thirdpass.com
 print("Successfully compiled 3rd-pass compute shader!")
 
 
+tp_output_indices_texture = tp_context.texture(size=(len(indices),1), components=4, dtype="i4")
+tp_output_indices_texture.bind_to_image(1, read=False, write=True)
 
-sp_cluster_quadric_map = sp_context.texture(size=image_shape,components=1, 
-                                            data=output_data_original, dtype="i4")
-if debug:
-    print(np.frombuffer(sp_cluster_quadric_map.read(),dtype=np.int32)[55*14:57*14])
-    print(output_data_original[55*14:57*14])
 
+# Create/bind vertex/index data
+tp_vertex_buffer = tp_context.buffer(vertices)
+tp_vertex_buffer.bind_to_storage_buffer(binding=0)
+tp_index_buffer = tp_context.buffer(indices)
+tp_index_buffer.bind_to_storage_buffer(binding=1)
+
+tp_cluster_id_buffer = tp_context.buffer(vertex_cluster_ids)
+tp_cluster_id_buffer.bind_to_storage_buffer(binding=2)
+
+
+third_pass_comp_shader['resolution'] = resolution
+
+# Actually run the shader
+st = time.time()
+third_pass_comp_shader.run(len(indices),1,1)
+print("Running 3rd-pass Compute Shader Took {:.5f} s".format(time.time()-st))
+
+# Second Pass Output "image" reading
+tp_output_vertex_indicies_original = np.frombuffer(tp_output_indices_texture.read(),dtype=np.int32)
+tp_output_vertex_indicies = np.reshape(tp_output_vertex_indicies_original, newshape=(len(indices),4), order="C")
+
+if True:
+    print("3rd-pass output")
+    print(tp_output_vertex_indicies.shape)
+    print("Number of output tris:",end=" ")
+    print(len(tp_output_vertex_indicies[tp_output_vertex_indicies[:,3] > 0]))
+
+tp_output_vertex_indicies_only = tp_output_vertex_indicies[tp_output_vertex_indicies[:,3] > 0][:,:3] # np.array(tp_output_vertex_indicies[:,:3], dtype=np.int32)
+
+#exit()
 
 ### End of Third Pass
 
 
-
+'''
 render_ctx = moderngl.create_context(require=430)
 render_prog = render_ctx.program(
     vertex_shader="shaders/basic.vert",
@@ -224,19 +252,6 @@ render_vao = render_ctx.vertex_array(
 render_vao.render(moderngl.TRIANGLES)
 
 exit()
-
-''' TODO for First Pass: 
-    1. Get vertex and index data to compute shader; and get output buffer recognized
-    2. Perform calculations on vertices by using index data
-    3. Output the required 14 floats of data (and maybe the extra cluster id) to output buffer
-    4. Save the buffer to a file and check its contents to verify it is at least coherent
-    5. Cleanup code (if have time)
-'''
-
-''' TODO for Second Pass: 
-    1. Finish First Pass...
-    ...
-    ?.. Cleanup 
 '''
 
 
@@ -248,56 +263,31 @@ class RenderWindow(BasicWindow):
         
         super().__init__(**kwargs)
 
-        self.back_color = (0, 0.3, 0.9, 1.0) #(1,1,1, 1)
+        self.back_color = (1, 1, 1, 1) #(1,1,1, 1)
 
 
-        self.cluster_quadric_map_generation_prog['bbox.min'].value = bbox[0]
-        self.cluster_quadric_map_generation_prog['bbox.max'].value = bbox[1]
+        self.prog = self.ctx.program(
+            vertex_shader=open("shaders/shader.vert","r").read(),
+            fragment_shader=open("shaders/shader.frag","r").read()
+            )
 
-        #self.cluster_quadric_map_generation_prog['cell_full_scale'].value = self.resolution
-        #self.cluster_quadric_map_generation_prog['resolution'].value = self.resolution
+        self.prog["bbox.min"] = bbox[0]
+        self.prog["bbox.max"] = bbox[1]
+        print(sp_simplified_vertex_positions_only.shape)
+        #print(sp_simplified_vertex_positions_only[sp_simplified_vertex_positions_only[:,2]>0])
+        self.indices = self.ctx.buffer(tp_output_vertex_indicies_only.copy(order="C"))            
+        self.vbo = self.ctx.buffer(sp_simplified_vertex_positions_only.copy(order="C"))
+        #print(tp_output_vertex_indicies_only[tp_output_vertex_indicies_only[:,0]>0][0,0])
+        #print(sp_simplified_vertex_positions_only[1643])
         
-        
-        self.wnd.size = (self.resolution**2, self.resolution)
-        self.wnd.resize(self.resolution**2, self.resolution)
-        #print(self.wnd.size)
-        #exit()
-
-        #self.cluster_quadric_map_generation_prog['width'].value = self.wnd.width
-        #self.cluster_quadric_map_generation_prog['height'].value = self.wnd.height
-
-
-        index_buffer = self.ctx.buffer(indices)
-        #print('Vertices 0-9', vertices[:10])
-        #print('Indices 0-9', indices[:10])
-
-        # Initialize an empty array texture for octree
-        self.cell_texture = self.ctx.texture(
-                            size=(self.resolution**2,self.resolution * 4), 
-                            components=4, 
-                            data=np.zeros(self.resolution**3 * 4 * 4,dtype=np.float32, order='C'),
-                            alignment=1,
-                            dtype="f4")
-            
-        ''' May be used later?
-        self.vertex_texture = self.ctx.texture(size=(len(vertices),1), components=4, 
-                            data=np.zeros((len(vertices)*4),dtype="f4", order='C'),
-                            alignment=1,
-                            dtype="f4")   
-        '''                  
-        print("cell texture size =",self.cell_texture.size,"components=",self.cell_texture.components)
-        #exit()
-        self.cell_framebuffer = self.ctx.framebuffer(color_attachments=self.cell_texture)
-        #print("Framebuffer for cell: Size =",self.cell_framebuffer.size, "viewport =",self.cell_framebuffer.viewport)
-        #self.cell_framebuffer.use()
-        self.vbo = self.ctx.buffer(vertices)
         
         #print(self.vbo)
-        self.fp_vao = self.ctx.vertex_array(
-            self.cluster_quadric_map_generation_prog, 
+        self.vao = self.ctx.vertex_array(
+            self.prog, 
             [
                 (self.vbo, '3f', 'inVert'),
             ],
+            self.indices
         )
 
         
@@ -321,56 +311,9 @@ class RenderWindow(BasicWindow):
             pass
         
     def render(self, run_time, frame_time):
-        if self.first_pass:
-            self.cell_framebuffer.use() 
-            #print(self.ctx.fbo)
-            self.ctx.clear(0., 0., 0., 0.)
-            self.ctx.enable(moderngl.BLEND)
-            self.ctx.blend_func = self.ctx.ADDITIVE_BLENDING # Required to add quadrics together
-            self.fp_vao.render(mode=moderngl.POINTS)
-            if not self.first_pass_output:
-                self.first_pass_output = True
-
-                num_components = 4
-                '''
-                print("Screen size:",self.ctx.screen.size, len(self.ctx.screen.read(components=num_components, dtype="f4")))
-                #print(self.ctx.screen.read(components=num_components, dtype="f4"))
-                raw_data = self.ctx.screen.read(components=num_components, dtype="f4")
-                first_pass_data = np.frombuffer(raw_data, dtype="f4"),
-                
-                print("FP Data Shape:", first_pass_data[0].shape)
-                new_shape = list(self.wnd.size) + [num_components]
-                print("New shape:",new_shape )
-                first_pass_data = np.reshape(first_pass_data, newshape=new_shape )     
-                print("FP Data Shape:", first_pass_data.shape)
-                '''
-                                       
-                #exit()
-                print("Framebuffer size:",len(self.cell_framebuffer.read(components=4, dtype="f4")))
-                print(self.cell_framebuffer.read(components=4, dtype="f4")[120:140])
-                first_pass_data = np.reshape(
-                    np.frombuffer(self.cell_framebuffer.read(components=4, dtype="f4"), dtype=np.float32),
-                            newshape=(self.resolution**2, self.resolution * 4, 4)
-                    )                
-                print(first_pass_data.shape)
-                #exit()
-                np.save("first_pass_output_single_point", first_pass_data)
-                #exit()
-                print(os.path.getsize("./first_pass_output_single_point.npy"))
-                self.first_pass_output = True
-                
-                self.first_pass = False
-                #self.cell_framebuffer.release()
-        elif not self.first_pass and self.mini_tris:
-            #self.ctx.clear(self.back_color)
-            self.ctx.clear(0.0, 0.0, 0.0)
-            #self.vao.render(mode=moderngl.POINTS, vertices=100, instances=2)
-            self.vao.render(mode=moderngl.POINTS)
-            self.miniTrisProg['model'].value = tuple(transf.compose_matrix(angles=(0, np.pi/2 * run_time/8, 0)).ravel())
-
-        else:
-            self.close()
-            exit()
+        bc = self.back_color
+        self.ctx.clear(bc[0],bc[1],bc[2],bc[3],)
+        self.vao.render(mode=moderngl.TRIANGLES)
 
 
 
