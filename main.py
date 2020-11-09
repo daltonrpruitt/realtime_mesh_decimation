@@ -280,6 +280,15 @@ class RenderWindow(BasicWindow):
         #print(tp_output_vertex_indicies_only[tp_output_vertex_indicies_only[:,0]>0][0,0])
         #print(sp_simplified_vertex_positions_only[1643])
         
+        ''' 
+        TODO: 
+            1. Look at moderngl.buffer vs np.array memory issues, directly translate if necessary
+            2. Get something that actually looks close to the original
+            3. Look into the issue with resolution > 25 (maybe  1D array memory size limitations?)
+
+        '''
+
+
         
         #print(self.vbo)
         self.vao = self.ctx.vertex_array(
