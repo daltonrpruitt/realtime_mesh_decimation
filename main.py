@@ -31,7 +31,7 @@ def source(uri, consts):
         content = content.replace(f"%%{key}%%", str(value))
     return content
 
-renderonly = True
+renderonly = False
 
 debug = True
 resolution = 2
@@ -329,7 +329,7 @@ class RenderWindow(BasicWindow):
         self.prog["bbox.max"] = bbox[1]
         self.prog['model'].value = tuple(transf.compose_matrix(angles=(np.pi/4, np.pi/4, 0)).ravel())
         self.prog['view'].value = tuple(transf.identity_matrix().ravel())
-        self.prog['proj'].value = tuple(transf.identity_matrix().ravel())
+        self.prog['proj'].value = tuple(transf.projection_matrix(point=(0,0,0), normal=(0,0,1),direction=(0,0,1), perspective=(0,0,1)).ravel())
 
         if not renderonly:
             print(sp_simplified_vertex_positions_only.shape)
@@ -383,8 +383,12 @@ class RenderWindow(BasicWindow):
         
     def render(self, run_time, frame_time):
         bc = self.back_color
+        self.ctx.front_face = 'ccw'
         self.ctx.clear(bc[0],bc[1],bc[2],bc[3],)
         self.vao.render(mode=moderngl.TRIANGLES)
+        self.prog['model'].value = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=(run_time/8, run_time * np.pi/3 ,  0 )).ravel())
+
+
 
 
 
