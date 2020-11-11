@@ -63,6 +63,8 @@ else:
     # Using the positive transformed version for ease of distinguishing valid points
     vertices = np.array(utility.positive_vertices(obj_mesh.vertices),dtype="f4")
 
+# Solves an issue with the compute shader not getting the indices correct?
+indices = np.append(indices, np.zeros(shape=(len(indices),1),dtype=np.int32), axis=1)
 
         
 bbox = utility.bounding_box(vertices) # Makes bounding box
@@ -108,11 +110,19 @@ if not renderonly:
     print("Successfully compiled 1st-pass compute shader!")
 
 
+
+
+
+
+
     # Create/bind vertex/index data
-    vertex_buffer = fp_context.buffer(vertices)
+    vertex_buffer = fp_context.buffer(vertices.astype("f4").tobytes())
     vertex_buffer.bind_to_storage_buffer(binding=0)
-    index_buffer = fp_context.buffer(indices)
+    index_buffer = fp_context.buffer(indices.astype("i4").tobytes())
     index_buffer.bind_to_storage_buffer(binding=1)
+
+    print(indices)
+    print(np.frombuffer(index_buffer.read(),dtype=np.int32))
 
     cluster_id_buffer = fp_context.buffer(vertex_cluster_ids)
     cluster_id_buffer.bind_to_storage_buffer(binding=2)
@@ -133,7 +143,7 @@ if not renderonly:
 
     first_pass_comp_shader['resolution'].value = resolution
     first_pass_comp_shader['float_to_int_scaling_factor'].value  = float_to_int_scaling_factor
-    #first_pass_comp_shader['debug'].value  = True
+    first_pass_comp_shader['debug'].value  = False
     ##############################################
 
     debug = True
@@ -185,7 +195,6 @@ if not renderonly:
         print("min,max z:",min(avg_vertices[:,2]), max(avg_vertices[:,2]))
         print(avg_vertices[:resolution*4,:3])
 
-    exit()
     # End of First Pass
 
     ##########################################
