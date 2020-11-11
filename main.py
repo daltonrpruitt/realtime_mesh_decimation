@@ -31,7 +31,7 @@ def source(uri, consts):
         content = content.replace(f"%%{key}%%", str(value))
     return content
 
-renderonly = False
+renderonly = True
 
 debug = True
 resolution = 2
@@ -334,12 +334,14 @@ class RenderWindow(BasicWindow):
             vertex_shader=open("shaders/basic.vert","r").read(),
             fragment_shader=open("shaders/shader.frag","r").read()
             )
-
+        #self.prog["width"].value = self.wnd.width
+        #self.prog["height"].value = self.wnd.height
+        
         self.prog["bbox.min"] = bbox[0]
         self.prog["bbox.max"] = bbox[1]
         self.prog['model'].value = tuple(transf.compose_matrix(angles=(np.pi/4, np.pi/4, 0)).ravel())
         self.prog['view'].value = tuple(transf.identity_matrix().ravel())
-        self.prog['proj'].value = tuple(transf.projection_matrix(point=(0,0,0), normal=(0,0,1),direction=(0,0,1), perspective=(0,0,1)).ravel())
+        self.prog['proj'].value = tuple(transf.identity_matrix().ravel()) #tuple(transf.projection_matrix(point=(0,0,0), normal=(0,0,1),direction=(0,0,1), perspective=(0,0,1)).ravel())
 
         if not renderonly:
             print(sp_simplified_vertex_positions_only.shape)
@@ -349,8 +351,8 @@ class RenderWindow(BasicWindow):
             #print(tp_output_vertex_indicies_only[tp_output_vertex_indicies_only[:,0]>0][0,0])
             #print(sp_simplified_vertex_positions_only[1643])
         else:
-            self.indices = self.ctx.buffer(indices)
-            self.vbo = self.ctx.buffer(vertices)
+            self.indices = self.ctx.buffer(indices[:,:3].copy(order="C"))
+            self.vbo = self.ctx.buffer(vertices[:,:3].copy(order="C"))
         
         ''' 
         TODO: 
@@ -395,8 +397,11 @@ class RenderWindow(BasicWindow):
         bc = self.back_color
         self.ctx.front_face = 'ccw'
         self.ctx.clear(bc[0],bc[1],bc[2],bc[3],)
+        self.prog["in_color"].value = (0.0, 0.3, 0.8, 1.0)
         self.vao.render(mode=moderngl.TRIANGLES)
-        self.prog['model'].value = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=(run_time/8, run_time * np.pi/3 ,  0 )).ravel())
+        self.prog["in_color"].value = (0.7, 0.2, 0.3, 1.0)
+        self.vao.render(mode=moderngl.LINE_LOOP)
+        self.prog['model'].value = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=( run_time * np.pi/4,np.pi/3 ,  0 )).ravel())
 
 
 
