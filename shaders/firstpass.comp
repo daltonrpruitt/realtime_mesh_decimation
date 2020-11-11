@@ -60,7 +60,8 @@ void main() {
     imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 1), int(float(output_x)*float_to_int_scaling_factor)); 
     return;
     */
-
+    int current = 0;
+    int tri_found = 6;
     // for each triangle
     for (int i=0; i < NUM_TRIS;  i++) {
     
@@ -70,6 +71,15 @@ void main() {
         // Only compute if in current cluster
         if (vert_cluster_ids[idxs[0]] != g_id && vert_cluster_ids[idxs[1]] != g_id && vert_cluster_ids[idxs[2]] != g_id ){
             continue;
+        }
+
+        if(current < tri_found ){ current++; continue;}
+        else {
+            imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 0), int(idxs[0] * float_to_int_scaling_factor)); 
+            imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 1), int(idxs[1] * float_to_int_scaling_factor)); 
+            imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 2), int(idxs[2] * float_to_int_scaling_factor)); 
+            imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 3), int(1.0 * float_to_int_scaling_factor)); 
+            return;
         }
 
         // At least one vertex in current cell

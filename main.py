@@ -41,8 +41,10 @@ use_triangle = False
 
 if use_box :
     box = box.Box()
-    vertices = np.array(utility.positive_vertices(box.vertices), dtype=np.float32) /2
+    vertices = np.array(utility.positive_vertices(box.vertices), dtype=np.float32)
     indices = np.array(box.indicies, dtype=np.int32)
+    print("Vertex Count:",len(vertices),"  Tri Count:",len(indices))
+
 elif use_triangle:
     tri = triangle.Triangle()
     vertices = np.array(utility.positive_vertices(tri.vertices), dtype=np.float32)
@@ -131,7 +133,7 @@ if not renderonly:
 
     first_pass_comp_shader['resolution'].value = resolution
     first_pass_comp_shader['float_to_int_scaling_factor'].value  = float_to_int_scaling_factor
-    first_pass_comp_shader['debug'].value  = True
+    #first_pass_comp_shader['debug'].value  = True
     ##############################################
 
     debug = True
