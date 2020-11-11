@@ -31,12 +31,13 @@ def source(uri, consts):
         content = content.replace(f"%%{key}%%", str(value))
     return content
 
-renderonly = True
+renderonly = False  
 
-debug = True
-resolution = 2
+debug = False
+resolution = 20
+
 float_to_int_scaling_factor = 2**13
-use_box = True
+use_box = False
 use_triangle = False
 
 if use_box :
@@ -218,7 +219,8 @@ if not renderonly:
     sp_cluster_vertex_positions.bind_to_image(1, read=False, write=True)
 
 
-    #second_pass_comp_shader['float_to_int_scaling_factor'] = float_to_int_scaling_factor
+    # If commented out, Causes "nan" or "inf" issues
+    second_pass_comp_shader['float_to_int_scaling_factor'] = float_to_int_scaling_factor
     #second_pass_comp_shader['resolution'] = resolution
 
     st = time.time()
@@ -235,7 +237,6 @@ if not renderonly:
     if debug:
         debug_vertex_positions = sp_output_vertex_positions[sp_output_vertex_positions[:,3] > -1.0]
         print(debug_vertex_positions[:,:])
-        exit()
         print("Second Pass cluster vertex positions:", sp_output_vertex_positions.shape,"-->",debug_vertex_positions.shape)
         print("Without empty cells:", sp_output_vertex_positions.shape,"-->",debug_vertex_positions.shape)
         print("\tNon-empty cells:", str(round(debug_vertex_positions.shape[0]/sp_output_vertex_positions.shape[0]*100,2))+"%")
@@ -269,9 +270,9 @@ if not renderonly:
     tp_output_tris_texture.bind_to_image(2, read=False, write=True)
 
     # Create/bind vertex/index data
-    tp_vertex_buffer = tp_context.buffer(vertices)
+    tp_vertex_buffer = tp_context.buffer(vertices.astype("f4").tobytes())
     tp_vertex_buffer.bind_to_storage_buffer(binding=0)
-    tp_index_buffer = tp_context.buffer(indices)
+    tp_index_buffer = tp_context.buffer(indices.astype("i4").tobytes())
     tp_index_buffer.bind_to_storage_buffer(binding=1)
 
     tp_cluster_id_buffer = tp_context.buffer(vertex_cluster_ids)
@@ -317,11 +318,20 @@ if not renderonly:
 
     ### End of Third Pass
 
+''' 
+TODO: 
+    1. Add shading to model in shaders (get normals in geometry shader)
+    2. Make updates in real-time (resolution is user-controlled via keys)
+    3. Fix Line Looping issue
+    4. More meshes to choose from 
+        a. In real time via keys?
+    ...?. Look into the issue with resolution > 25 (maybe  1D array memory size limitations?)
 
+'''
 
 class RenderWindow(BasicWindow):
     gl_version = (4, 3)
-    title = "Geometry Shader Testing"
+    title = "Vertex Cluster Quadric Error Metric Mesh Decimation"
 
     def __init__(self, **kwargs):
         
@@ -332,6 +342,7 @@ class RenderWindow(BasicWindow):
 
         self.prog = self.ctx.program(
             vertex_shader=open("shaders/basic.vert","r").read(),
+            #geometry_shader=open("shaders/basic.geom","r").read(),
             fragment_shader=open("shaders/shader.frag","r").read()
             )
         #self.prog["width"].value = self.wnd.width
@@ -354,13 +365,7 @@ class RenderWindow(BasicWindow):
             self.indices = self.ctx.buffer(indices[:,:3].copy(order="C"))
             self.vbo = self.ctx.buffer(vertices[:,:3].copy(order="C"))
         
-        ''' 
-        TODO: 
-            1. Look at moderngl.buffer vs np.array memory issues, directly translate if necessary
-            2. Get something that actually looks close to the original
-            3. Look into the issue with resolution > 25 (maybe  1D array memory size limitations?)
 
-        '''
 
 
         
@@ -401,13 +406,9 @@ class RenderWindow(BasicWindow):
         self.vao.render(mode=moderngl.TRIANGLES)
         self.prog["in_color"].value = (0.7, 0.2, 0.3, 1.0)
         self.vao.render(mode=moderngl.LINE_LOOP)
-        self.prog['model'].value = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=( run_time * np.pi/4,np.pi/3 ,  0 )).ravel())
+        self.prog['model'].value = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=( 0, run_time * np.pi/4 ,  0 )).ravel())
 
 
-
-
-
-        
 
 if __name__ == '__main__':
     RenderWindow.run()

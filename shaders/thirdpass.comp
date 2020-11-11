@@ -13,12 +13,12 @@ layout(local_size_x=1, local_size_y=1, local_size_z=1) in;
 
 layout(std430, binding=0) buffer inVerts
 {
-    vec3 vertices[];
+    vec4 vertices[];
 };
 
 layout(std430, binding=1) buffer inIndices
 {
-    uvec3 indices[];
+    uvec4 indices[];
 };
 
 layout(std430, binding=2) buffer vert_cluster_id
@@ -40,8 +40,8 @@ void main() {
     //int id = int(gl_GlobalInvocationID.x); 
     
     // get triangle
-    uvec3 idxs = indices[id];
-    vec3 verts[3] = {vertices[idxs[0]], vertices[idxs[1]], vertices[idxs[2]]};
+    uvec3 idxs = indices[id].xyz;
+    vec3 verts[3] = {vertices[idxs[0]].xyz, vertices[idxs[1]].xyz, vertices[idxs[2]].xyz};
 
     // Only output triangle if in current cluster
     if (vert_cluster_ids[idxs[0]] == vert_cluster_ids[idxs[1]] || 
