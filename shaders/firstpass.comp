@@ -18,7 +18,7 @@ layout(local_size_x=1, local_size_y=1, local_size_z=1) in;
 
 layout(std430, binding=0) buffer inVerts
 {
-    vec3 vertices[];
+    vec4 vertices[];
 };
 
 layout(std430, binding=1) buffer inIndices
@@ -56,24 +56,27 @@ void main() {
     int output_x = int(gl_GlobalInvocationID.x); 
     
     /*
+    // only works when Num_clusters = NUM_VERTICES
+    uvec3 debug_idxs = indices[g_id].xyz;
+    imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 0), int(debug_idxs[0] * float_to_int_scaling_factor)); 
+    imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 1), int(debug_idxs[1] * float_to_int_scaling_factor)); 
+    imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 2), int(debug_idxs[2] * float_to_int_scaling_factor)); 
+    imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 3), int(1.0 * float_to_int_scaling_factor)); 
+    return;
+    */
+
+    /*
     imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 0), int(float(output_x)*float_to_int_scaling_factor)); 
     imageAtomicAdd(cluster_quadric_map, ivec2(output_x, 1), int(float(output_x)*float_to_int_scaling_factor)); 
     return;
     */
-    //int current = 0;
-    //int tri_found = 3;
+    // Part of debugging 
+    int current = 0;
+    int tri_found = 1;
+
     // for each triangle
     for (int i=0; i < NUM_TRIS;  i++) {
         
-        /*
-        // only works when Num_clusters = NUM_VERTICES
-        uvec3 debug_idxs = indices[g_id].xyz;
-        imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 0), int(debug_idxs[0] * float_to_int_scaling_factor)); 
-        imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 1), int(debug_idxs[1] * float_to_int_scaling_factor)); 
-        imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 2), int(debug_idxs[2] * float_to_int_scaling_factor)); 
-        imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 3), int(1.0 * float_to_int_scaling_factor)); 
-        return;
-        */
 
         
         uvec3 idxs = indices[i].xyz;
@@ -82,6 +85,9 @@ void main() {
         if (vert_cluster_ids[idxs[0]] != g_id && vert_cluster_ids[idxs[1]] != g_id && vert_cluster_ids[idxs[2]] != g_id ){
             continue;
         }
+
+        // Debug line
+        if(current < tri_found ){ current++; continue;}
 
         /*
         if(current < tri_found ){ current++; continue;}
@@ -94,7 +100,7 @@ void main() {
         }*/
 
         // At least one vertex in current cell
-        vec3 verts[3] = {vertices[idxs[0]], vertices[idxs[1]], vertices[idxs[2]]};
+        vec3 verts[3] = {vertices[idxs[0]].xyz, vertices[idxs[1]].xyz, vertices[idxs[2]].xyz};
 
         // Compute quadric for plane
         vec3 normal = normalize(cross(verts[1]-verts[0], verts[2]-verts[0]));
@@ -123,9 +129,18 @@ void main() {
 
         if (debug) {
             for(int v=0; v < 3; v++){
+                
+                
                 ivec3 i_vert = ivec3(verts[v] * float_to_int_scaling_factor); // Have to scale "appropriately"
 
                 if(vert_cluster_ids[idxs[v]] == g_id){
+
+                    imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 0), int(idxs[v] * float_to_int_scaling_factor)); 
+                    imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 3), int(1.0 * float_to_int_scaling_factor)); 
+                    imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 4), int(i_vert.x)); 
+                    imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 5), int(i_vert.y)); 
+                    imageAtomicAdd(cluster_quadric_map, ivec2(g_id, 6), int(i_vert.z)); 
+                    return;
                     
                     
                     // putting vertex index in place only for each one of the vertices
@@ -144,7 +159,7 @@ void main() {
         } else {
 
             // Check individual vertices and add relevant data
-            for(uint v=0; v < 3; v++){
+            for(int v=0; v < 3; v++){
                 ivec3 i_vert = ivec3(verts[v] * float_to_int_scaling_factor); // Have to scale "appropriately"
 
                 if(vert_cluster_ids[idxs[v]] == g_id){

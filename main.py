@@ -65,9 +65,10 @@ else:
 
 # Solves an issue with the compute shader not getting the indices correct?
 indices = np.append(indices, np.zeros(shape=(len(indices),1),dtype=np.int32), axis=1)
+vertices = np.append(vertices, np.zeros(shape=(len(vertices),1),dtype=np.float32), axis=1)
 
         
-bbox = utility.bounding_box(vertices) # Makes bounding box
+bbox = utility.bounding_box(vertices[:,:3]) # Makes bounding box
 if debug:
     print("Input Vertices:")
     print("\tMin,max of x:",min(vertices[:,0]),",",max(vertices[:,0]))
@@ -79,7 +80,7 @@ if debug:
 if not renderonly:
 
     st = time.time()
-    vertex_cluster_indices, vertex_cluster_ids = get_vertex_cell_indices_ids(vertices=vertices, resolution=resolution)
+    vertex_cluster_indices, vertex_cluster_ids = get_vertex_cell_indices_ids(vertices=vertices[:,:3], resolution=resolution)
     print("Generating vertex cluster indicies and IDs took {:.5f} s".format(time.time()-st))
     vertex_cluster_ids = np.array(vertex_cluster_ids, dtype=np.int32)
 
@@ -111,18 +112,14 @@ if not renderonly:
 
 
 
-
-
-
-
     # Create/bind vertex/index data
     vertex_buffer = fp_context.buffer(vertices.astype("f4").tobytes())
     vertex_buffer.bind_to_storage_buffer(binding=0)
     index_buffer = fp_context.buffer(indices.astype("i4").tobytes())
     index_buffer.bind_to_storage_buffer(binding=1)
 
-    print(indices)
-    print(np.frombuffer(index_buffer.read(),dtype=np.int32))
+    #print(indices)
+    #print(np.frombuffer(index_buffer.read(),dtype=np.int32))
 
     cluster_id_buffer = fp_context.buffer(vertex_cluster_ids)
     cluster_id_buffer.bind_to_storage_buffer(binding=2)
@@ -194,6 +191,8 @@ if not renderonly:
         print("min,max y:",min(avg_vertices[:,1]), max(avg_vertices[:,1]))
         print("min,max z:",min(avg_vertices[:,2]), max(avg_vertices[:,2]))
         print(avg_vertices[:resolution*4,:3])
+
+    print("End of First Pass")
 
     # End of First Pass
 
