@@ -337,7 +337,7 @@ class RenderWindow(BasicWindow):
         
         super().__init__(**kwargs)
 
-        self.back_color = (1, 1, 1, 1) #(1,1,1, 1)
+        self.back_color = (0.3, 0.5, 0.8, 1) #(1,1,1, 1)
 
 
         self.prog = self.ctx.program(
@@ -406,7 +406,7 @@ class RenderWindow(BasicWindow):
         self.vao.render(mode=moderngl.TRIANGLES)
         self.prog["in_color"].value = (0.7, 0.2, 0.3, 1.0)
         self.vao.render(mode=moderngl.LINE_LOOP)
-        self.prog['model'].value = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=( 0, run_time * np.pi/4 ,  0 )).ravel())
+        self.prog['model'].value = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=(0, run_time * np.pi/4 ,  0 )).ravel())
 
 
 
