@@ -94,6 +94,7 @@ if not renderonly:
     #print(vertex_cluster_ids[:30])
     print("No. of Tris:", len(indices))
 
+
     shader_constants = {
         "NUM_VERTS": len(vertices), 
         "NUM_TRIS" : len(indices), 
@@ -320,11 +321,13 @@ if not renderonly:
 
 ''' 
 TODO: 
-    1. Add shading to model in shaders (get normals in geometry shader)
+    X 1. Add shading to model in shaders (get normals in geometry shader)
     2. Make updates in real-time (resolution is user-controlled via keys)
     3. Fix Line Looping issue
     4. More meshes to choose from 
         a. In real time via keys?
+    5. Make timer more precise (time.time_ns())
+        (and perform average execution time for real-time calcs???)
     ...?. Look into the issue with resolution > 25 (maybe  1D array memory size limitations?)
 
 '''
@@ -342,7 +345,7 @@ class RenderWindow(BasicWindow):
 
         self.prog = self.ctx.program(
             vertex_shader=open("shaders/basic.vert","r").read(),
-            #geometry_shader=open("shaders/basic.geom","r").read(),
+            geometry_shader=open("shaders/basic.geom","r").read(),
             fragment_shader=open("shaders/shader.frag","r").read()
             )
         #self.prog["width"].value = self.wnd.width
@@ -387,7 +390,9 @@ class RenderWindow(BasicWindow):
         # Key presses
         if action == self.wnd.keys.ACTION_PRESS:
             '''
-            if key == self.wnd.keys.G and not modifiers.shift and not modifiers.ctrl:
+            if key == self.wnd.keys.R and not modifiers.shift and not modifiers.ctrl:
+                self.cluster_resolution += 1
+                self.
                 if self.prog['sphere.glossiness'].value < 1 :
                     self.prog['sphere.glossiness'].value += 0.1
                 print("Sphere glossiness:", self.prog['sphere.glossiness'].value)
@@ -400,7 +405,9 @@ class RenderWindow(BasicWindow):
         
     def render(self, run_time, frame_time):
         bc = self.back_color
-        self.ctx.front_face = 'ccw'
+        self.ctx.enable(moderngl.CULL_FACE)
+        self.ctx.enable(moderngl.DEPTH_TEST)
+        self.ctx.front_face = 'cw'
         self.ctx.clear(bc[0],bc[1],bc[2],bc[3],)
         self.prog["in_color"].value = (0.0, 0.3, 0.8, 1.0)
         self.vao.render(mode=moderngl.TRIANGLES)
