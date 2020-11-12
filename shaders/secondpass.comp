@@ -69,6 +69,7 @@ void main() {
         //float count = float(imageLoad(cluster_quadric_map, ivec2(output_x, 3))) / float_to_int_scaling_factor ;    // 3
 
         cluster_vert = vec3(sum_x, sum_y, sum_z) / count;
+        //cluster_vert = vec3(0);
 
     } else {
 
