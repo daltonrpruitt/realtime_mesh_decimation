@@ -134,7 +134,7 @@ if not renderonly:
     image_shape = (size, 14)
     # Output "image" creation
     cluster_quadric_map_int = fp_context.texture(size=image_shape, components=1, dtype="i4")
-    cluster_quadric_map_int.bind_to_image(4, read=True, write=True)
+    cluster_quadric_map_int.bind_to_image(3, read=True, write=True)
 
     #quadric_map = fp_context.texture(size=(size,4), components=4,dtype="f4") 
 
@@ -201,11 +201,11 @@ if not renderonly:
     ##########################################
 
     # Second Pass
-    sp_context = moderngl.create_standalone_context(require=430)
-    second_pass_comp_shader = sp_context.compute_shader(source("shaders/secondpass.comp", shader_constants))
+    #sp_context = moderngl.create_standalone_context(require=430)
+    second_pass_comp_shader = fp_context.compute_shader(source("shaders/secondpass.comp", shader_constants))
     print("Successfully compiled 2nd-pass compute shader!")
 
-
+    '''
     sp_cluster_quadric_map = sp_context.texture(size=image_shape,components=1, 
                                                 data=fp_output_data_original, dtype="i4")
     if debug:
@@ -213,11 +213,11 @@ if not renderonly:
         print("\t",np.frombuffer(sp_cluster_quadric_map.read(),dtype=np.int32)[:20])
         print("\t",fp_output_data_original[:20])
 
-    sp_cluster_quadric_map.bind_to_image(0, read=True, write=False)
-
-    sp_cluster_vertex_positions = sp_context.texture(size=(image_shape[0],1),components=4, 
+    sp_cluster_quadric_map.bind_to_image(3, read=True, write=False)
+    '''
+    sp_cluster_vertex_positions = fp_context.texture(size=(image_shape[0],1),components=4, 
                                                 data=None, dtype="f4")
-    sp_cluster_vertex_positions.bind_to_image(1, read=False, write=True)
+    sp_cluster_vertex_positions.bind_to_image(4, read=False, write=True)
 
 
     # If commented out, Causes "nan" or "inf" issues
@@ -252,24 +252,28 @@ if not renderonly:
     ##########################################
 
     # Third Pass
-    tp_context = moderngl.create_standalone_context(require=430)
-    third_pass_comp_shader = tp_context.compute_shader(source("shaders/thirdpass.comp", shader_constants))
+    #tp_context = moderngl.create_standalone_context(require=430)
+    third_pass_comp_shader = fp_context.compute_shader(source("shaders/thirdpass.comp", shader_constants))
     print("Successfully compiled 3rd-pass compute shader!")
 
-
+    '''
     tp_simplified_vertex_positions = tp_context.texture(
                             size=(size,1), components=4, 
                             data=sp_output_vertex_positions_original,
                             dtype="f4")
     tp_simplified_vertex_positions.bind_to_image(0, read=True, write=False)
+    '''
+
+    sp_cluster_vertex_positions.bind_to_image(4, read=True, write=False)
 
 
-    tp_output_indices_texture = tp_context.texture(size=(len(indices),1), components=4, dtype="i4")
-    tp_output_indices_texture.bind_to_image(1, read=False, write=True)
+    tp_output_indices_texture = fp_context.texture(size=(len(indices),1), components=4, dtype="i4")
+    tp_output_indices_texture.bind_to_image(5, read=False, write=True)
 
-    tp_output_tris_texture = tp_context.texture(size=(len(indices),3), components=4, dtype="f4")
-    tp_output_tris_texture.bind_to_image(2, read=False, write=True)
+    tp_output_tris_texture = fp_context.texture(size=(len(indices),3), components=4, dtype="f4")
+    tp_output_tris_texture.bind_to_image(6, read=False, write=True)
 
+    '''
     # Create/bind vertex/index data
     tp_vertex_buffer = tp_context.buffer(vertices.astype("f4").tobytes())
     tp_vertex_buffer.bind_to_storage_buffer(binding=0)
@@ -278,7 +282,7 @@ if not renderonly:
 
     tp_cluster_id_buffer = tp_context.buffer(vertex_cluster_ids)
     tp_cluster_id_buffer.bind_to_storage_buffer(binding=2)
-
+    '''
 
     third_pass_comp_shader['resolution'] = resolution
 

@@ -4,8 +4,6 @@
 #define Y %%Y%%
 #define Z %%Z%%
 
-#define NUM_VERTS %%NUM_VERTS%%
-#define NUM_TRIS %%NUM_TRIS%%
 
 // Workgroup Sizes
 layout(local_size_x=1, local_size_y=1, local_size_z=1) in;
@@ -26,9 +24,9 @@ layout(std430, binding=2) buffer vert_cluster_id
     uint vert_cluster_ids[];
 };
 
-layout(rgba32f, binding = 0) uniform image2D cluster_vertex_position;
-layout(rgba32i, binding = 1) uniform writeonly iimage2D simplified_vertex_indices;
-layout(rgba32f, binding = 2) uniform writeonly image2D simplified_tris;
+layout(rgba32f, binding = 4) uniform image2D cluster_vertex_position;
+layout(rgba32i, binding = 5) uniform writeonly iimage2D simplified_vertex_indices;
+layout(rgba32f, binding = 6) uniform writeonly image2D simplified_tris;
 
 uniform int resolution;
 uint u_resolution = uint(resolution);

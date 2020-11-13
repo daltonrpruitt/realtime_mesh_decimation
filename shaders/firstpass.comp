@@ -9,7 +9,6 @@
 #define Y %%Y%%
 #define Z %%Z%%
 
-#define NUM_VERTS %%NUM_VERTS%%
 #define NUM_TRIS %%NUM_TRIS%%
 
 // Workgroup Sizes
@@ -31,18 +30,7 @@ layout(std430, binding=2) buffer vert_cluster_id
     uint vert_cluster_ids[];
 };
 
-//uniform vec3 inIndices[NUM_TRIS]; // NUM_TRIS
-
-/*layout (std430, binding = 3) buffer quadric_map
-{
-    vec4 vertex_pos_total[1];
-    vec4 quadric_first_4[1];
-    vec4 quadric_next_3_plus_1[1];
-    vec4 quadric_last_2[1];
-};*/
-
-
-layout(r32i, binding = 4) uniform iimage2D cluster_quadric_map;
+layout(r32i, binding = 3) uniform iimage2D cluster_quadric_map;
 
 uniform float float_to_int_scaling_factor;
 uniform int resolution;
