@@ -323,19 +323,6 @@ if not renderonly:
 
     ### End of Third Pass
 
-''' 
-TODO: 
-    X 1. Add shading to model in shaders (get normals in geometry shader)
-    2. Make updates in real-time (resolution is user-controlled via keys)
-    3. Fix Line Looping issue
-    4. More meshes to choose from 
-        a. In real time via keys?
-    5. Make timer more precise (time.time_ns())
-        (and perform average execution time for real-time calcs???)
-    ...?. Look into the issue with resolution > 25 (maybe  1D array memory size limitations?)
-
-'''
-
 class RenderWindow(BasicWindow):
     gl_version = (4, 3)
     title = "Vertex Cluster Quadric Error Metric Mesh Decimation"
