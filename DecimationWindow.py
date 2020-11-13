@@ -32,7 +32,78 @@ def source(uri, consts):
     return content
 
 class DecimationProgram:
-    pass
+
+    def __init__(self, vertices, indices, resolution_in):
+        self.bbox = utility.bounding_box(vertices[:,:3]) # Makes bounding box
+        self.decimation_context = moderngl.create_standalone_context(require=430)
+        self.shader_constants = {
+            "NUM_TRIS" : len(indices), 
+            "X": 1,
+            "Y": 1, 
+            "Z": 1
+        }
+        self.resolution = resolution_in
+        self.num_clusters = self.resolution**3
+
+        self.image_shape = (self.num_clusters, 14)
+
+        self.compute_prog1 = self.decimation_context.compute_shader(source("shaders/firstpass.comp", shader_constants))
+        self.compute_prog2 = self.decimation_context.compute_shader(source("shaders/secondpass.comp", shader_constants))
+        self.compute_prog3 = self.decimation_context.compute_shader(source("shaders/thirdpass.comp", shader_constants))
+        print("\tCompiled all 3 compute shaders!")
+
+        self.vertex_buffer = self.decimation_context.buffer(vertices.astype("f4").tobytes())
+        self.vertex_buffer.bind_to_storage_buffer(binding=0)
+        self.index_buffer = self.decimation_context.buffer(indices.astype("i4").tobytes())
+        self.index_buffer.bind_to_storage_buffer(binding=1)
+
+        self.cluster_id_buffer = self.decimation_context.buffer(vertex_cluster_ids)
+        self.cluster_id_buffer.bind_to_storage_buffer(binding=2)
+
+        self.cluster_quadric_map_int = self.decimation_context.texture(size=self.image_shape, components=1, dtype="i4")
+        self.cluster_quadric_map_int.bind_to_image(3, read=True, write=True)
+
+        self.cluster_vertex_positions = self.decimation_context.texture(size=(self.num_clusters,1), components=4, 
+                                                    data=None, dtype="f4")
+        self.cluster_vertex_positions.bind_to_image(4, read=False, write=True)
+
+        self.output_indices_texture = self.decimation_context.texture(size=(len(indices),1), components=4, dtype="i4")
+        self.output_indices_texture.bind_to_image(5, read=False, write=True)
+
+
+
+    def reset_resolution(self, resolution):
+        self.resolution = resolution
+        self.num_clusters = self.resolution**3
+
+        self.image_shape = (self.num_clusters, 14)
+
+        # No need to fecompile shaders
+        
+        # Resize textures
+        self.cluster_quadric_map_int.release()
+        self.cluster_quadric_map_int = self.decimation_context.texture(size=self.image_shape, components=1, dtype="i4")
+        self.cluster_quadric_map_int.bind_to_image(3, read=True, write=True)
+
+        self.cluster_vertex_positions.release()
+        self.cluster_vertex_positions = self.decimation_context.texture(size=(self.num_clusters,1), components=4, 
+                                                    data=None, dtype="f4")
+        self.cluster_vertex_positions.bind_to_image(4, read=False, write=True)
+
+
+    def reset_mesh(self, vertices, indices):
+        '''
+        Resize all textures and recompile shaders 1 and 3
+        '''
+        pass
+
+    def decimate_mesh(self, resolution=25):
+        if self.resolution != resolution:
+            self.reset_resolution(resolution)
+        # Run programs
+        
+        pass
+
 
 renderonly = False  
 
@@ -99,15 +170,14 @@ if not renderonly:
 
 
     shader_constants = {
-        "NUM_VERTS": len(vertices), 
         "NUM_TRIS" : len(indices), 
         "X": 1,
         "Y": 1, 
         "Z": 1
     }
 
-    #size = len(indices)
-    size = resolution**3
+    #num_clusters = len(indices)
+    num_clusters = resolution**3
 
 
     # Standalone since not doing any rendering yet
@@ -134,12 +204,12 @@ if not renderonly:
 
     #print(np.reshape(np.frombuffer(vertex_buffer.read(),dtype="f4"),newshape=(len(vertices),3))[:5])
 
-    image_shape = (size, 14)
+    image_shape = (num_clusters, 14)
     # Output "image" creation
     cluster_quadric_map_int = fp_context.texture(size=image_shape, components=1, dtype="i4")
-    cluster_quadric_map_int.bind_to_image(4, read=True, write=True)
+    cluster_quadric_map_int.bind_to_image(3, read=True, write=True)
 
-    #quadric_map = fp_context.texture(size=(size,4), components=4,dtype="f4") 
+    #quadric_map = fp_context.texture(size=(num_clusters,4), components=4,dtype="f4") 
 
     ############## FP Uniforms ###################
 
@@ -150,7 +220,7 @@ if not renderonly:
 
     debug = True
     st = time.time()
-    first_pass_comp_shader.run(size, 1, 1)
+    first_pass_comp_shader.run(num_clusters, 1, 1)
     print("Running FP Compute Shader Took {:.5f} s".format(time.time()-st))
 
     if debug:
@@ -216,11 +286,11 @@ if not renderonly:
         print("\t",np.frombuffer(sp_cluster_quadric_map.read(),dtype=np.int32)[:20])
         print("\t",fp_output_data_original[:20])
 
-    sp_cluster_quadric_map.bind_to_image(0, read=True, write=False)
+    sp_cluster_quadric_map.bind_to_image(3, read=True, write=False)
 
     sp_cluster_vertex_positions = sp_context.texture(size=(image_shape[0],1),components=4, 
                                                 data=None, dtype="f4")
-    sp_cluster_vertex_positions.bind_to_image(1, read=False, write=True)
+    sp_cluster_vertex_positions.bind_to_image(4, read=False, write=True)
 
 
     # If commented out, Causes "nan" or "inf" issues
@@ -228,7 +298,7 @@ if not renderonly:
     #second_pass_comp_shader['resolution'] = resolution
 
     st = time.time()
-    second_pass_comp_shader.run(size, 1, 1)
+    second_pass_comp_shader.run(num_clusters, 1, 1)
     print("Running SP Compute Shader Took {:.5f} s".format(time.time()-st))
 
     #print(sp_output_vertex_positions_original)
@@ -261,7 +331,7 @@ if not renderonly:
 
 
     tp_simplified_vertex_positions = tp_context.texture(
-                            size=(size,1), components=4, 
+                            size=(num_clusters,1), components=4, 
                             data=sp_output_vertex_positions_original,
                             dtype="f4")
     tp_simplified_vertex_positions.bind_to_image(0, read=True, write=False)
@@ -331,6 +401,8 @@ TODO:
         a. In real time via keys?
     5. Make timer more precise (time.time_ns())
         (and perform average execution time for real-time calcs???)
+    6. Get actual output tri/vert count 
+        (basically take the output buffers and get # of non-errored lines)
     ...?. Look into the issue with resolution > 25 (maybe  1D array memory size limitations?)
 
 '''
