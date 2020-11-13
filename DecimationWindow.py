@@ -31,33 +31,45 @@ def source(uri, consts):
         content = content.replace(f"%%{key}%%", str(value))
     return content
 
-class DecimationProgram:
+class DecimationProgram(object):
 
-    def __init__(self, vertices, indices, resolution_in):
-        self.bbox = utility.bounding_box(vertices[:,:3]) # Makes bounding box
+    def __init__(self, vertices, indices, bounding_box=None, resolution_in=20, ):
+        self.vertices = vertices
+        self.indices = indices
+        
+        if bounding_box is not None:
+            self.bbox = bounding_box
+        else:
+            self.bbox = utility.bounding_box(self.vertices[:,:3]) # Makes bounding box
+       
         self.decimation_context = moderngl.create_standalone_context(require=430)
         self.shader_constants = {
-            "NUM_TRIS" : len(indices), 
+            "NUM_TRIS" : len(self.indices), 
             "X": 1,
             "Y": 1, 
             "Z": 1
         }
         self.resolution = resolution_in
         self.num_clusters = self.resolution**3
-
+        self.float_to_int_scaling_factor = 2**13
         self.image_shape = (self.num_clusters, 14)
+        
+        _, self.vertex_cluster_ids = get_vertex_cell_indices_ids(vertices=vertices[:,:3], resolution=self.resolution)
+        self.vertex_cluster_ids = np.array(self.vertex_cluster_ids, dtype=np.int32)
 
-        self.compute_prog1 = self.decimation_context.compute_shader(source("shaders/firstpass.comp", shader_constants))
-        self.compute_prog2 = self.decimation_context.compute_shader(source("shaders/secondpass.comp", shader_constants))
-        self.compute_prog3 = self.decimation_context.compute_shader(source("shaders/thirdpass.comp", shader_constants))
+
+
+        self.compute_prog1 = self.decimation_context.compute_shader(source("shaders/firstpass.comp", self.shader_constants))
+        self.compute_prog2 = self.decimation_context.compute_shader(source("shaders/secondpass.comp", self.shader_constants))
+        self.compute_prog3 = self.decimation_context.compute_shader(source("shaders/thirdpass.comp", self.shader_constants))
         print("\tCompiled all 3 compute shaders!")
 
-        self.vertex_buffer = self.decimation_context.buffer(vertices.astype("f4").tobytes())
+        self.vertex_buffer = self.decimation_context.buffer(self.vertices.astype("f4").tobytes())
         self.vertex_buffer.bind_to_storage_buffer(binding=0)
-        self.index_buffer = self.decimation_context.buffer(indices.astype("i4").tobytes())
+        self.index_buffer = self.decimation_context.buffer(self.indices.astype("i4").tobytes())
         self.index_buffer.bind_to_storage_buffer(binding=1)
 
-        self.cluster_id_buffer = self.decimation_context.buffer(vertex_cluster_ids)
+        self.cluster_id_buffer = self.decimation_context.buffer(self.vertex_cluster_ids)
         self.cluster_id_buffer.bind_to_storage_buffer(binding=2)
 
         self.cluster_quadric_map_int = self.decimation_context.texture(size=self.image_shape, components=1, dtype="i4")
@@ -67,13 +79,13 @@ class DecimationProgram:
                                                     data=None, dtype="f4")
         self.cluster_vertex_positions.bind_to_image(4, read=False, write=True)
 
-        self.output_indices_texture = self.decimation_context.texture(size=(len(indices),1), components=4, dtype="i4")
-        self.output_indices_texture.bind_to_image(5, read=False, write=True)
+        self.output_indices = self.decimation_context.texture(size=(len(indices),1), components=4, dtype="i4")
+        self.output_indices.bind_to_image(5, read=False, write=True)
+        print("Finished Decimation Program Setup!")
 
 
-
-    def reset_resolution(self, resolution):
-        self.resolution = resolution
+    def reset_resolution(self, resolution_in=20):
+        self.resolution = resolution_in
         self.num_clusters = self.resolution**3
 
         self.image_shape = (self.num_clusters, 14)
@@ -90,21 +102,42 @@ class DecimationProgram:
                                                     data=None, dtype="f4")
         self.cluster_vertex_positions.bind_to_image(4, read=False, write=True)
 
+    def increment_resolution(self):
+        if self.resolution < 25:
+            self.reset_resolution(self.resolution + 1)
+    
+    def decrement_resolution(self):
+        if self.resolution > 2:
+            self.reset_resolution(self.resolution - 1)
 
     def reset_mesh(self, vertices, indices):
         '''
         Resize all textures and recompile shaders 1 and 3
+        Optional/For later
         '''
         pass
 
     def decimate_mesh(self, resolution=25):
         if self.resolution != resolution:
             self.reset_resolution(resolution)
+
+
+        # Set uniforms
+        self.compute_prog1['resolution'].value = self.resolution
+        self.compute_prog1['float_to_int_scaling_factor'].value  =  self.float_to_int_scaling_factor
+        self.compute_prog1['debug'].value  = False
+        self.compute_prog2['float_to_int_scaling_factor'].value  =  self.float_to_int_scaling_factor
+        self.compute_prog3['resolution'] = resolution
+
         # Run programs
-        
-        pass
+        self.compute_prog1.run(self.num_clusters, 1, 1)
+        self.compute_prog2.run(self.num_clusters, 1, 1)
+        self.compute_prog3.run(len(self.indices), 1, 1)
 
+        # Need the simplified positions and the indices into those vertices
+        return self.cluster_vertex_positions, self.output_indices
 
+"""
 renderonly = False  
 
 debug = False
@@ -113,47 +146,36 @@ resolution = 20
 float_to_int_scaling_factor = 2**13
 use_box = False
 use_triangle = False
+"""
 
-if use_box :
-    box = box.Box()
-    vertices = np.array(utility.positive_vertices(box.vertices), dtype=np.float32)
-    indices = np.array(box.indicies, dtype=np.int32)
-    print("Vertex Count:",len(vertices),"  Tri Count:",len(indices))
+def load_model(model="link"):
+    
+    if model == "link":
+        st = time.time()
+        #self.obj_mesh = trimesh.exchange.load.load("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj")
+        obj_mesh = pywavefront.Wavefront("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj", collect_faces=True)
+        print("Loading mesh took {:.2f} s".format(time.time()-st))
+        #vertices = np.array(obj_mesh.vertices, dtype='f4')
 
-elif use_triangle:
-    tri = triangle.Triangle()
-    vertices = np.array(utility.positive_vertices(tri.vertices), dtype=np.float32)
-    indices = np.array(tri.indicies, dtype=np.int32)
+        # indices are a list of groups of 3 indices into the vertex array, each group representing 1 triangle
+        indices = np.array(obj_mesh.mesh_list[0].faces,dtype=np.int32)
+        # Using the positive transformed version for ease of distinguishing valid points
+        vertices = np.array(utility.positive_vertices(obj_mesh.vertices),dtype="f4")
+
+    elif model == "box" :
+        box = box.Box()
+        vertices = np.array(utility.positive_vertices(box.vertices), dtype=np.float32)
+        indices = np.array(box.indicies, dtype=np.int32)
+        print("Vertex Count:",len(vertices),"  Tri Count:",len(indices))
 
 
-else:
-    st = time.time()
-    #self.obj_mesh = trimesh.exchange.load.load("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj")
-    obj_mesh = pywavefront.Wavefront("meshes/ssbb-toon-link-obj/DolToonlinkR1_fixed.obj", collect_faces=True)
-    print("Loading mesh took {:.2f} s".format(time.time()-st))
-    #vertices = np.array(obj_mesh.vertices, dtype='f4')
+    # Solves an issue with the compute shader not getting the indices correct?
+    indices = np.append(indices, np.zeros(shape=(len(indices),1),dtype=np.int32), axis=1)
+    vertices = np.append(vertices, np.zeros(shape=(len(vertices),1),dtype=np.float32), axis=1)
+    return vertices, indices
 
-    # indices are a list of groups of 3 indices into the vertex array, each group representing 1 triangle
-    indices = np.array(obj_mesh.mesh_list[0].faces,dtype=np.int32)
-    # Using the positive transformed version for ease of distinguishing valid points
-    vertices = np.array(utility.positive_vertices(obj_mesh.vertices),dtype="f4")
-
-# Solves an issue with the compute shader not getting the indices correct?
-indices = np.append(indices, np.zeros(shape=(len(indices),1),dtype=np.int32), axis=1)
-vertices = np.append(vertices, np.zeros(shape=(len(vertices),1),dtype=np.float32), axis=1)
-
-        
-bbox = utility.bounding_box(vertices[:,:3]) # Makes bounding box
-if debug:
-    print("Input Vertices:")
-    print("\tMin,max of x:",min(vertices[:,0]),",",max(vertices[:,0]))
-    print("\tMin,max of y:",min(vertices[:,1]),",",max(vertices[:,1]))
-    print("\tMin,max of z:",min(vertices[:,2]),",",max(vertices[:,2]))
-    #print(vertices)
-    #print(indices)
-
-if not renderonly:
-
+ 
+if False:
     st = time.time()
     vertex_cluster_indices, vertex_cluster_ids = get_vertex_cell_indices_ids(vertices=vertices[:,:3], resolution=resolution)
     print("Generating vertex cluster indicies and IDs took {:.5f} s".format(time.time()-st))
@@ -240,13 +262,13 @@ if not renderonly:
 
 
     fp_output_array = np.array(fp_output_data, dtype=np.float32,order="F")
-    '''
+    
     iter, span = 0, 20
     while True:
         print(iter,"to",iter+span, ":", output_array[iter:iter+span])
         iter+=span
         if input("Enter nothing to continue:") != "":
-            break'''
+            break
     if debug:
         print(fp_output_array)
         output_sum_vertices = fp_output_array[:,:3]
@@ -392,6 +414,7 @@ if not renderonly:
 
     ### End of Third Pass
 
+
 ''' 
 TODO: 
     X 1. Add shading to model in shaders (get normals in geometry shader)
@@ -407,6 +430,7 @@ TODO:
 
 '''
 
+
 class DecimationWindow(BasicWindow):
     gl_version = (4, 3)
     title = "Vertex Cluster Quadric Error Metric Mesh Decimation"
@@ -416,58 +440,222 @@ class DecimationWindow(BasicWindow):
         super().__init__(**kwargs)
 
         self.back_color = (0.3, 0.5, 0.8, 1) #(1,1,1, 1)
+        self.is_decimated = False
+    
 
+        self.vertices, self.indices = load_model("link")
+        self.bbox = utility.bounding_box(points=self.vertices[:,:3])
 
-        self.prog = self.ctx.program(
+        self.tri_prog = self.ctx.program(
             vertex_shader=open("shaders/basic.vert","r").read(),
             geometry_shader=open("shaders/basic.geom","r").read(),
             fragment_shader=open("shaders/shader.frag","r").read()
             )
+        self.line_prog = self.ctx.program(
+            vertex_shader=open("shaders/basic.vert","r").read(),
+            fragment_shader=open("shaders/basic.frag","r").read()
+            )
         #self.prog["width"].value = self.wnd.width
         #self.prog["height"].value = self.wnd.height
         
-        self.prog["bbox.min"] = bbox[0]
-        self.prog["bbox.max"] = bbox[1]
-        self.prog['model'].value = tuple(transf.compose_matrix(angles=(np.pi/4, np.pi/4, 0)).ravel())
-        self.prog['view'].value = tuple(transf.identity_matrix().ravel())
-        self.prog['proj'].value = tuple(transf.identity_matrix().ravel()) #tuple(transf.projection_matrix(point=(0,0,0), normal=(0,0,1),direction=(0,0,1), perspective=(0,0,1)).ravel())
+        self.tri_prog["bbox.min"] = self.bbox[0]
+        self.tri_prog["bbox.max"] = self.bbox[1]
+        self.tri_prog['model'].value = tuple(transf.compose_matrix(angles=(np.pi/4, np.pi/4, 0)).ravel())
+        self.tri_prog['view'].value = tuple(transf.identity_matrix().ravel())
+        self.tri_prog['proj'].value = tuple(transf.identity_matrix().ravel()) 
+        self.tri_prog["in_color"].value = (0.0, 0.3, 0.8, 1.0)
 
-        if not renderonly:
-            print(sp_simplified_vertex_positions_only.shape)
-            #print(sp_simplified_vertex_positions_only[sp_simplified_vertex_positions_only[:,2]>0])
-            self.indices = self.ctx.buffer(tp_output_vertex_indicies_only.copy(order="C"))            
-            self.vbo = self.ctx.buffer(sp_simplified_vertex_positions_only.copy(order="C"))
-            #print(tp_output_vertex_indicies_only[tp_output_vertex_indicies_only[:,0]>0][0,0])
-            #print(sp_simplified_vertex_positions_only[1643])
-        else:
-            self.indices = self.ctx.buffer(indices[:,:3].copy(order="C"))
-            self.vbo = self.ctx.buffer(vertices[:,:3].copy(order="C"))
+        self.line_prog["bbox.min"] = self.bbox[0]
+        self.line_prog["bbox.max"] = self.bbox[1]
+        self.line_prog['model'].value = tuple(transf.compose_matrix(angles=(np.pi/4, np.pi/4, 0)).ravel())
+        self.line_prog['view'].value = tuple(transf.identity_matrix().ravel())
+        self.line_prog['proj'].value = tuple(transf.identity_matrix().ravel()) 
+        self.line_prog["in_color"].value = (0.7, 0.2, 0.3, 1.0)
+
+
+
+        self.vbo = self.ctx.buffer(self.vertices[:,:3].copy(order="C"))
+        self.index_buffer = self.ctx.buffer(self.indices[:,:3].copy(order="C"))
         
 
-
-
-        
         #print(self.vbo)
-        self.vao = self.ctx.vertex_array(
-            self.prog, 
+        self.tri_vao_base = self.ctx.vertex_array(
+            self.tri_prog, 
             [
                 (self.vbo, '3f', 'inVert'),
             ],
-            self.indices
+            self.index_buffer
         )
 
-        
+        self.line_vao_base = self.ctx.vertex_array(
+            self.line_prog, 
+            [
+                (self.vbo, '3f', 'inVert'),
+            ],
+            self.index_buffer
+        )
 
+        self.current_tri_vao = self.tri_vao_base
+        self.current_line_vao = self.line_vao_base
+
+        self.shader_constants = {
+            "NUM_TRIS" : len(self.indices), 
+            "X": 1,
+            "Y": 1, 
+            "Z": 1
+        }
+        self.resolution = 20
+        self.num_clusters = self.resolution**3
+        self.float_to_int_scaling_factor = 2**13
+        self.image_shape = (self.num_clusters, 14)
+        
+        _, self.vertex_cluster_ids = get_vertex_cell_indices_ids(vertices=self.vertices[:,:3], resolution=self.resolution)
+        self.vertex_cluster_ids = np.array(self.vertex_cluster_ids, dtype=np.int32)
+
+
+
+        self.compute_prog1 = self.ctx.compute_shader(source("shaders/firstpass.comp", self.shader_constants))
+        self.compute_prog2 = self.ctx.compute_shader(source("shaders/secondpass.comp", self.shader_constants))
+        self.compute_prog3 = self.ctx.compute_shader(source("shaders/thirdpass.comp", self.shader_constants))
+        print("\tCompiled all 3 compute shaders!")
+
+        self.vertex_buffer = self.ctx.buffer(self.vertices.astype("f4").tobytes())
+        self.vertex_buffer.bind_to_storage_buffer(binding=0)
+        self.index_buffer = self.ctx.buffer(self.indices.astype("i4").tobytes())
+        self.index_buffer.bind_to_storage_buffer(binding=1)
+
+        self.cluster_id_buffer = self.ctx.buffer(self.vertex_cluster_ids)
+        self.cluster_id_buffer.bind_to_storage_buffer(binding=2)
+
+        self.cluster_quadric_map_int = self.ctx.texture(size=self.image_shape, components=1, dtype="i4")
+        self.cluster_quadric_map_int.bind_to_image(3, read=True, write=True)
+
+        self.cluster_vertex_positions = self.ctx.texture(size=(self.num_clusters,1), components=4, 
+                                                    data=None, dtype="f4")
+        self.cluster_vertex_positions.bind_to_image(4, read=False, write=True)
+
+        self.output_indices = self.ctx.texture(size=(len(self.indices),1), components=4, dtype="i4")
+        self.output_indices.bind_to_image(5, read=False, write=True)
+        print("Finished Decimation Program Setup!")
+
+        self.decimate_mesh()
+        
+        self.tri_vao_decimated = self.ctx.vertex_array(
+            self.tri_prog, 
+            [
+                (self.dec_vert_buff, '3f', 'inVert'),
+            ],
+            self.dec_index_buff
+        )
+
+        self.line_vao_decimated = self.ctx.vertex_array(
+            self.line_prog, 
+            [
+                (self.dec_vert_buff, '3f', 'inVert'),
+            ],
+            self.dec_index_buff
+        )
+
+
+    def reset_resolution(self, resolution_in=20):
+        self.resolution = resolution_in
+        self.num_clusters = self.resolution**3
+
+        self.image_shape = (self.num_clusters, 14)
+
+        # No need to recompile shaders
+        
+        # Resize textures
+        self.cluster_quadric_map_int.release()
+        self.cluster_quadric_map_int = self.ctx.texture(size=self.image_shape, components=1, dtype="i4")
+        self.cluster_quadric_map_int.bind_to_image(3, read=True, write=True)
+
+        self.cluster_vertex_positions.release()
+        self.cluster_vertex_positions = self.ctx.texture(size=(self.num_clusters,1), components=4, 
+                                                    data=None, dtype="f4")
+        self.cluster_vertex_positions.bind_to_image(4, read=False, write=True)
+
+    def increment_resolution(self):
+        if self.resolution < 25:
+            self.reset_resolution(self.resolution + 1)
+    
+    def decrement_resolution(self):
+        if self.resolution > 2:
+            self.reset_resolution(self.resolution - 1)
+
+    def reset_mesh(self, vertices, indices):
+        '''
+        Resize all textures and recompile shaders 1 and 3
+        Optional/For later
+        '''
+        pass
+
+    def decimate_mesh(self):
+        print("Current resolution:", self.resolution)
+
+        # Set uniforms
+        self.compute_prog1['resolution'].value = self.resolution
+        self.compute_prog1['float_to_int_scaling_factor'].value  =  self.float_to_int_scaling_factor
+        self.compute_prog1['debug'].value  = False
+        self.compute_prog2['float_to_int_scaling_factor'].value  =  self.float_to_int_scaling_factor
+        self.compute_prog3['resolution'] = self.resolution
+
+        # Run programs
+        self.compute_prog1.run(self.num_clusters, 1, 1)
+        self.compute_prog2.run(self.num_clusters, 1, 1)
+        self.compute_prog3.run(len(self.indices), 1, 1)
+
+        # Need the simplified positions and the indices into those vertices
+        output_vertices = np.reshape(np.frombuffer(self.cluster_vertex_positions.read(),dtype=np.float32),
+                                    newshape=(self.num_clusters,4), order="C")
+
+        output_indices = np.reshape(np.frombuffer(self.output_indices.read(),dtype=np.int32),
+                                         newshape=(len(self.indices),4), order="C")
+        
+        output_indices = output_indices[output_indices[:,3] > 0][:,:3] 
+        self.dec_vert_buff = self.ctx.buffer(output_vertices[:,:3].copy(order="C"))
+        self.dec_index_buff = self.ctx.buffer(output_indices[:,:3].copy(order="C"))
+        
+        self.tri_vao_decimated = self.ctx.vertex_array(
+            self.tri_prog, 
+            [
+                (self.dec_vert_buff, '3f', 'inVert'),
+            ],
+            self.dec_index_buff
+        )
+
+        self.line_vao_decimated = self.ctx.vertex_array(
+            self.line_prog, 
+            [
+                (self.dec_vert_buff, '3f', 'inVert'),
+            ],
+            self.dec_index_buff
+        )
 
 
     def key_event(self, key, action, modifiers):
         
         # Key presses
         if action == self.wnd.keys.ACTION_PRESS:
-            '''
+
+            # Toggle decimation
+            if key == self.wnd.keys.D:
+                self.is_decimated = not self.is_decimated
+                if self.is_decimated:
+                    self.current_tri_vao = self.tri_vao_decimated
+                    self.current_line_vao = self.line_vao_decimated
+                else:                    
+                    self.current_tri_vao = self.tri_vao_base
+                    self.current_line_vao = self.line_vao_base
+
             if key == self.wnd.keys.R and not modifiers.shift and not modifiers.ctrl:
-                self.cluster_resolution += 1
-                self.
+                self.increment_resolution()
+                self.decimate_mesh()
+            if key == self.wnd.keys.R and modifiers.shift and not modifiers.ctrl:
+                self.decrement_resolution()
+                self.decimate_mesh()
+
+            '''
                 if self.prog['sphere.glossiness'].value < 1 :
                     self.prog['sphere.glossiness'].value += 0.1
                 print("Sphere glossiness:", self.prog['sphere.glossiness'].value)
@@ -484,11 +672,10 @@ class DecimationWindow(BasicWindow):
         self.ctx.enable(moderngl.DEPTH_TEST)
         self.ctx.front_face = 'cw'
         self.ctx.clear(bc[0],bc[1],bc[2],bc[3],)
-        self.prog["in_color"].value = (0.0, 0.3, 0.8, 1.0)
-        self.vao.render(mode=moderngl.TRIANGLES)
-        self.prog["in_color"].value = (0.7, 0.2, 0.3, 1.0)
-        self.vao.render(mode=moderngl.LINE_LOOP)
-        self.prog['model'].value = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=(0, run_time * np.pi/4 ,  0 )).ravel())
+        self.current_tri_vao.render(mode=moderngl.TRIANGLES)
+        self.current_line_vao.render(mode=moderngl.LINE_LOOP)
+        self.tri_prog['model'].value = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=(0, run_time * np.pi/4 ,  0 )).ravel())
+        self.line_prog['model'].value = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=(0, run_time * np.pi/4 ,  0 )).ravel())
 
 
 
