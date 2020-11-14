@@ -31,6 +31,7 @@ def source(uri, consts):
         content = content.replace(f"%%{key}%%", str(value))
     return content
 
+"""
 class DecimationProgram(object):
 
     def __init__(self, vertices, indices, bounding_box=None, resolution_in=20, ):
@@ -138,6 +139,9 @@ class DecimationProgram(object):
         return self.cluster_vertex_positions, self.output_indices
 
 """
+
+
+"""
 renderonly = False  
 
 debug = False
@@ -163,9 +167,9 @@ def load_model(model="link"):
         vertices = np.array(utility.positive_vertices(obj_mesh.vertices),dtype="f4")
 
     elif model == "box" :
-        box = box.Box()
-        vertices = np.array(utility.positive_vertices(box.vertices), dtype=np.float32)
-        indices = np.array(box.indicies, dtype=np.int32)
+        box_model = box.Box()
+        vertices = np.array(utility.positive_vertices(box_model.vertices), dtype=np.float32)
+        indices = np.array(box_model.indicies, dtype=np.int32)
         print("Vertex Count:",len(vertices),"  Tri Count:",len(indices))
 
 
@@ -174,7 +178,7 @@ def load_model(model="link"):
     vertices = np.append(vertices, np.zeros(shape=(len(vertices),1),dtype=np.float32), axis=1)
     return vertices, indices
 
- 
+"""
 if False:
     st = time.time()
     vertex_cluster_indices, vertex_cluster_ids = get_vertex_cell_indices_ids(vertices=vertices[:,:3], resolution=resolution)
@@ -414,7 +418,7 @@ if False:
 
     ### End of Third Pass
 
-
+"""
 ''' 
 TODO: 
     X 1. Add shading to model in shaders (get normals in geometry shader)
@@ -441,9 +445,11 @@ class DecimationWindow(BasicWindow):
 
         self.back_color = (0.3, 0.5, 0.8, 1) #(1,1,1, 1)
         self.is_decimated = False
-    
+        self.debug = True
+        self.indexed_output = True
 
         self.vertices, self.indices = load_model("link")
+        print(self.vertices.shape)
         self.bbox = utility.bounding_box(points=self.vertices[:,:3])
 
         self.tri_prog = self.ctx.program(
@@ -460,10 +466,10 @@ class DecimationWindow(BasicWindow):
         
         self.tri_prog["bbox.min"] = self.bbox[0]
         self.tri_prog["bbox.max"] = self.bbox[1]
-        self.tri_prog['model'].value = tuple(transf.compose_matrix(angles=(np.pi/4, np.pi/4, 0)).ravel())
+        self.tri_prog['model'].value = tuple(transf.compose_matrix(angles=(0, np.pi*5/4, 0)).ravel())# (np.pi/4, np.pi/4, 0)).ravel())
         self.tri_prog['view'].value = tuple(transf.identity_matrix().ravel())
         self.tri_prog['proj'].value = tuple(transf.identity_matrix().ravel()) 
-        self.tri_prog["in_color"].value = (0.0, 0.3, 0.8, 1.0)
+        self.tri_prog["in_color"].value = (0.0, 0.9, 0.3, 1.0)
 
         self.line_prog["bbox.min"] = self.bbox[0]
         self.line_prog["bbox.max"] = self.bbox[1]
@@ -513,7 +519,6 @@ class DecimationWindow(BasicWindow):
         self.vertex_cluster_ids = np.array(self.vertex_cluster_ids, dtype=np.int32)
 
 
-
         self.compute_prog1 = self.ctx.compute_shader(source("shaders/firstpass.comp", self.shader_constants))
         self.compute_prog2 = self.ctx.compute_shader(source("shaders/secondpass.comp", self.shader_constants))
         self.compute_prog3 = self.ctx.compute_shader(source("shaders/thirdpass.comp", self.shader_constants))
@@ -536,32 +541,34 @@ class DecimationWindow(BasicWindow):
 
         self.output_indices = self.ctx.texture(size=(len(self.indices),1), components=4, dtype="i4")
         self.output_indices.bind_to_image(5, read=False, write=True)
+        self.output_tri_verts = self.ctx.texture(size=(self.num_clusters,1), components=4, dtype="f4")
+        self.output_tri_verts.bind_to_image(6, read=False, write=True)
+
         print("Finished Decimation Program Setup!")
 
         self.decimate_mesh()
-        
-        self.tri_vao_decimated = self.ctx.vertex_array(
-            self.tri_prog, 
-            [
-                (self.dec_vert_buff, '3f', 'inVert'),
-            ],
-            self.dec_index_buff
-        )
-
-        self.line_vao_decimated = self.ctx.vertex_array(
-            self.line_prog, 
-            [
-                (self.dec_vert_buff, '3f', 'inVert'),
-            ],
-            self.dec_index_buff
-        )
+        # VAOs set in decimate_mesh()
+        if self.debug:
+            self.debug_dump()
 
 
-    def reset_resolution(self, resolution_in=20):
+
+
+    def reset_resolution(self, resolution_in):
         self.resolution = resolution_in
         self.num_clusters = self.resolution**3
 
         self.image_shape = (self.num_clusters, 14)
+        
+        _, self.vertex_cluster_ids = get_vertex_cell_indices_ids(vertices=self.vertices[:,:3], resolution=self.resolution)
+        self.vertex_cluster_ids = np.array(self.vertex_cluster_ids, dtype=np.int32)
+        
+        # Have data, now have to refill the buffer with it
+        self.cluster_id_buffer.release()
+        self.cluster_id_buffer = self.ctx.buffer(self.vertex_cluster_ids)
+        self.cluster_id_buffer.bind_to_storage_buffer(binding=2)
+
+        #print(max(self.vertex_cluster_ids))
 
         # No need to recompile shaders
         
@@ -574,6 +581,11 @@ class DecimationWindow(BasicWindow):
         self.cluster_vertex_positions = self.ctx.texture(size=(self.num_clusters,1), components=4, 
                                                     data=None, dtype="f4")
         self.cluster_vertex_positions.bind_to_image(4, read=False, write=True)
+
+        self.output_tri_verts.release()
+        self.output_tri_verts = self.ctx.texture(size=(self.num_clusters,1), components=4, dtype="f4")
+        self.output_tri_verts.bind_to_image(6, read=False, write=True)
+
 
     def increment_resolution(self):
         if self.resolution < 25:
@@ -592,7 +604,7 @@ class DecimationWindow(BasicWindow):
 
     def decimate_mesh(self):
         print("Current resolution:", self.resolution)
-
+        #print(self.indices)
         # Set uniforms
         self.compute_prog1['resolution'].value = self.resolution
         self.compute_prog1['float_to_int_scaling_factor'].value  =  self.float_to_int_scaling_factor
@@ -606,16 +618,21 @@ class DecimationWindow(BasicWindow):
         self.compute_prog3.run(len(self.indices), 1, 1)
 
         # Need the simplified positions and the indices into those vertices
-        output_vertices = np.reshape(np.frombuffer(self.cluster_vertex_positions.read(),dtype=np.float32),
+        self.output_vertices_array = np.reshape(np.frombuffer(self.cluster_vertex_positions.read(),dtype=np.float32),
                                     newshape=(self.num_clusters,4), order="C")
+        self.dec_vert_buff = self.ctx.buffer(self.output_vertices_array[:,:3].copy(order="C"))
 
-        output_indices = np.reshape(np.frombuffer(self.output_indices.read(),dtype=np.int32),
+        self.output_indices_array = np.reshape(np.frombuffer(self.output_indices.read(),dtype=np.int32),
                                          newshape=(len(self.indices),4), order="C")
+        self.output_indices_array = self.output_indices_array[self.output_indices_array[:,3] > -0.5]
+        self.dec_index_buff = self.ctx.buffer(self.output_indices_array[:,:3].copy(order="C"))
+
+        self.output_tri_verts_array = np.reshape(np.frombuffer(self.output_tri_verts.read(),dtype=np.float32),
+                                         newshape=(self.num_clusters,4), order="C")
+        self.output_tri_verts_array = self.output_tri_verts_array[self.output_tri_verts_array[:,3] > -0.5]
+        self.dec_tri_vert_buff = self.ctx.buffer(self.output_tri_verts_array[:,:3].copy(order="C"))
         
-        output_indices = output_indices[output_indices[:,3] > 0][:,:3] 
-        self.dec_vert_buff = self.ctx.buffer(output_vertices[:,:3].copy(order="C"))
-        self.dec_index_buff = self.ctx.buffer(output_indices[:,:3].copy(order="C"))
-        
+
         self.tri_vao_decimated = self.ctx.vertex_array(
             self.tri_prog, 
             [
@@ -632,28 +649,76 @@ class DecimationWindow(BasicWindow):
             self.dec_index_buff
         )
 
+        self.tri_only_vao_decimated = self.ctx.vertex_array(
+            self.tri_prog, 
+            [
+                (self.dec_tri_vert_buff, '3f', 'inVert'),
+            ],
+        )
+
+        self.tri_only_line_vao_decimated = self.ctx.vertex_array(
+            self.line_prog, 
+            [
+                (self.dec_tri_vert_buff, '3f', 'inVert'),
+            ],
+        )
+
+
+    def set_vertex_array_object(self):
+        if self.is_decimated:
+            if self.indexed_output:
+                self.current_tri_vao = self.tri_vao_decimated
+                self.current_line_vao = self.line_vao_decimated
+            else:
+                self.current_tri_vao = self.tri_only_vao_decimated
+                self.current_line_vao = self.tri_only_line_vao_decimated
+        else:                    
+            self.current_tri_vao = self.tri_vao_base
+            self.current_line_vao = self.line_vao_base
+
+
+    def debug_dump(self):
+        print("-------DEBUG VALUES------")
+        #debug_output_indices = np.reshape(np.frombuffer(self.dec_index_buff.read(),dtype=np.int32),
+        #        newshape=(len(self.indices), 3))
+        print("Output Indices: Num=",len(self.output_indices_array))
+        print(self.output_indices_array[:5])
+        #debug_output_vertices_array = np.reshape(np.frombuffer(self.dec_vert_buff.read(),dtype=np.float32),
+         #       newshape=(self.num_clusters, 3))
+        print(self.output_vertices_array[:20])
+        valid_verts = self.output_vertices_array[self.output_vertices_array[:,0] > -1]
+        print("Output Vertices: Num=",len(valid_verts))
+        print(valid_verts[:20])
+
+        print("Chosen Vertices:")
+        vertices = self.output_vertices_array[self.output_indices_array.flatten()]
+        print(vertices[vertices[:,0] < 0])
+
 
     def key_event(self, key, action, modifiers):
         
         # Key presses
         if action == self.wnd.keys.ACTION_PRESS:
 
-            # Toggle decimation
+            # Toggle showing decimation
             if key == self.wnd.keys.D:
-                self.is_decimated = not self.is_decimated
-                if self.is_decimated:
-                    self.current_tri_vao = self.tri_vao_decimated
-                    self.current_line_vao = self.line_vao_decimated
-                else:                    
-                    self.current_tri_vao = self.tri_vao_base
-                    self.current_line_vao = self.line_vao_base
+                if modifiers.shift:
+                    self.indexed_output = not self.indexed_output
+                else:
+                    self.is_decimated = not self.is_decimated
+                    self.set_vertex_array_object()
 
-            if key == self.wnd.keys.R and not modifiers.shift and not modifiers.ctrl:
-                self.increment_resolution()
+            if key == self.wnd.keys.R and not modifiers.ctrl:
+                if not modifiers.shift:
+                    self.increment_resolution()
+                else:
+                    self.decrement_resolution()
+
                 self.decimate_mesh()
-            if key == self.wnd.keys.R and modifiers.shift and not modifiers.ctrl:
-                self.decrement_resolution()
-                self.decimate_mesh()
+                if self.debug:
+                    self.debug_dump()
+                self.set_vertex_array_object()
+
 
             '''
                 if self.prog['sphere.glossiness'].value < 1 :
