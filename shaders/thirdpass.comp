@@ -41,17 +41,19 @@ void main() {
     uvec3 idxs = indices[id].xyz;
     vec3 verts[3] = {vertices[idxs[0]].xyz, vertices[idxs[1]].xyz, vertices[idxs[2]].xyz};
 
-    // Only output triangle if in current cluster
+    // Only output triangle if vertices in different clusters
     if (vert_cluster_ids[idxs[0]] == vert_cluster_ids[idxs[1]] || 
         vert_cluster_ids[idxs[0]] == vert_cluster_ids[idxs[2]]  ||
         vert_cluster_ids[idxs[1]] == vert_cluster_ids[idxs[2]]){
             // record error because culled
             //Indices
             imageStore(simplified_vertex_indices, ivec2(id, 0), ivec4(-1));
+            
             // Complete Tris 
             imageStore(simplified_tris, ivec2(id, 0), vec4(-1));
             imageStore(simplified_tris, ivec2(id, 1), vec4(-1));
             imageStore(simplified_tris, ivec2(id, 2), vec4(-1));
+            
     } else {
         /*
         vec3 v0 = imageLoad(cluster_vertex_position, ivec2(idxs[0],0)).xyz;
@@ -67,15 +69,17 @@ void main() {
                             1)
                    );
 
+        
         imageStore(simplified_tris, ivec2(id, 0),
                  imageLoad(cluster_vertex_position, ivec2(vert_cluster_ids[idxs.x],0))
         );
-       imageStore(simplified_tris, ivec2(id, 1),
+        imageStore(simplified_tris, ivec2(id, 1),
                  imageLoad(cluster_vertex_position, ivec2(vert_cluster_ids[idxs.y],0))
         );
-       imageStore(simplified_tris, ivec2(id, 2),
+        imageStore(simplified_tris, ivec2(id, 2),
                  imageLoad(cluster_vertex_position, ivec2(vert_cluster_ids[idxs.z],0))
         );
+        
 
     }
     
