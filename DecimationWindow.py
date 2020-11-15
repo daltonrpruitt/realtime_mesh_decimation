@@ -166,6 +166,14 @@ def load_model(model="link"):
         # Using the positive transformed version for ease of distinguishing valid points
         vertices = np.array(utility.positive_vertices(obj_mesh.vertices),dtype="f4")
 
+    elif model == "amphora":
+        st = time.time()
+        obj_mesh = pywavefront.Wavefront("meshes/meshes_for_graphics/amphora_with_handles_v2_hi_poly.obj", collect_faces=True)
+        print("Loading mesh took {:.2f} s".format(time.time()-st))
+
+        indices = np.array(obj_mesh.mesh_list[0].faces,dtype=np.int32)
+        vertices = np.array(utility.positive_vertices(obj_mesh.vertices),dtype="f4")
+
     elif model == "box" :
         box_model = box.Box()
         vertices = np.array(utility.positive_vertices(box_model.vertices), dtype=np.float32)
@@ -419,6 +427,7 @@ if False:
     ### End of Third Pass
 
 """
+
 ''' 
 TODO: 
     X 1. Add shading to model in shaders (get normals in geometry shader)
@@ -445,10 +454,10 @@ class DecimationWindow(BasicWindow):
 
         self.back_color = (0.3, 0.5, 0.8, 1) #(1,1,1, 1)
         self.is_decimated = False
-        self.debug = True
+        self.debug = False
         self.indexed_output = True
 
-        self.vertices, self.indices = load_model("link")
+        self.vertices, self.indices = load_model("amphora")
         print(self.vertices.shape)
         self.bbox = utility.bounding_box(points=self.vertices[:,:3])
 
@@ -477,7 +486,6 @@ class DecimationWindow(BasicWindow):
         self.line_prog['view'].value = tuple(transf.identity_matrix().ravel())
         self.line_prog['proj'].value = tuple(transf.identity_matrix().ravel()) 
         self.line_prog["in_color"].value = (0.7, 0.2, 0.3, 1.0)
-
 
 
         self.vbo = self.ctx.buffer(self.vertices[:,:3].copy(order="C"))
@@ -510,7 +518,7 @@ class DecimationWindow(BasicWindow):
             "Y": 1, 
             "Z": 1
         }
-        self.resolution = 20
+        self.resolution = 25
         self.num_clusters = self.resolution**3
         self.float_to_int_scaling_factor = 2**13
         self.image_shape = (self.num_clusters, 14)
@@ -541,6 +549,7 @@ class DecimationWindow(BasicWindow):
 
         self.output_indices = self.ctx.texture(size=(len(self.indices),1), components=4, dtype="i4")
         self.output_indices.bind_to_image(5, read=False, write=True)
+
         self.output_tri_verts = self.ctx.texture(size=(self.num_clusters,1), components=4, dtype="f4")
         self.output_tri_verts.bind_to_image(6, read=False, write=True)
 
@@ -550,7 +559,6 @@ class DecimationWindow(BasicWindow):
         # VAOs set in decimate_mesh()
         if self.debug:
             self.debug_dump()
-
 
 
 
@@ -564,7 +572,7 @@ class DecimationWindow(BasicWindow):
         self.vertex_cluster_ids = np.array(self.vertex_cluster_ids, dtype=np.int32)
         
         # Have data, now have to refill the buffer with it
-        self.cluster_id_buffer.release()
+        #self.cluster_id_buffer.release()
         self.cluster_id_buffer = self.ctx.buffer(self.vertex_cluster_ids)
         self.cluster_id_buffer.bind_to_storage_buffer(binding=2)
 
@@ -573,27 +581,36 @@ class DecimationWindow(BasicWindow):
         # No need to recompile shaders
         
         # Resize textures
-        self.cluster_quadric_map_int.release()
-        self.cluster_quadric_map_int = self.ctx.texture(size=self.image_shape, components=1, dtype="i4")
+        #self.cluster_quadric_map_int.release()
+        self.cluster_quadric_map_int = self.ctx.texture(size=self.image_shape, data=None, components=1, dtype="i4")
         self.cluster_quadric_map_int.bind_to_image(3, read=True, write=True)
 
-        self.cluster_vertex_positions.release()
-        self.cluster_vertex_positions = self.ctx.texture(size=(self.num_clusters,1), components=4, 
-                                                    data=None, dtype="f4")
+        #self.cluster_vertex_positions.release()
+        self.cluster_vertex_positions = self.ctx.texture(size=(self.num_clusters,1), data=None, components=4, dtype="f4")
         self.cluster_vertex_positions.bind_to_image(4, read=False, write=True)
 
-        self.output_tri_verts.release()
-        self.output_tri_verts = self.ctx.texture(size=(self.num_clusters,1), components=4, dtype="f4")
+        #self.output_tri_verts.release()
+        self.output_tri_verts = self.ctx.texture(size=(self.num_clusters,1), data=None, components=4, dtype="f4")
         self.output_tri_verts.bind_to_image(6, read=False, write=True)
 
 
     def increment_resolution(self):
         if self.resolution < 25:
             self.reset_resolution(self.resolution + 1)
-    
+            self.decimate_mesh()
+            return True
+        else:
+            print("Already at Max Resolution!")
+            return False
+
     def decrement_resolution(self):
         if self.resolution > 2:
-            self.reset_resolution(self.resolution - 1)
+            self.reset_resolution(self.resolution - 1)            
+            self.decimate_mesh()
+            return True
+        else:
+            print("Already at Min Resolution!")
+            return False
 
     def reset_mesh(self, vertices, indices):
         '''
@@ -605,16 +622,21 @@ class DecimationWindow(BasicWindow):
     def decimate_mesh(self):
         print("Current resolution:", self.resolution)
         #print(self.indices)
+        
         # Set uniforms
         self.compute_prog1['resolution'].value = self.resolution
         self.compute_prog1['float_to_int_scaling_factor'].value  =  self.float_to_int_scaling_factor
         self.compute_prog1['debug'].value  = False
+
         self.compute_prog2['float_to_int_scaling_factor'].value  =  self.float_to_int_scaling_factor
+
         self.compute_prog3['resolution'] = self.resolution
 
         # Run programs
         self.compute_prog1.run(self.num_clusters, 1, 1)
+        print(np.frombuffer(self.cluster_vertex_positions.read(),dtype=np.float32)) # These print statements, for some reason, seem to be really important for timing reasons
         self.compute_prog2.run(self.num_clusters, 1, 1)
+        print(np.frombuffer(self.cluster_vertex_positions.read(),dtype=np.float32)) # These print statements, for some reason, seem to be really important for timing reasons
         self.compute_prog3.run(len(self.indices), 1, 1)
 
         # Need the simplified positions and the indices into those vertices
@@ -624,12 +646,12 @@ class DecimationWindow(BasicWindow):
 
         self.output_indices_array = np.reshape(np.frombuffer(self.output_indices.read(),dtype=np.int32),
                                          newshape=(len(self.indices),4), order="C")
-        self.output_indices_array = self.output_indices_array[self.output_indices_array[:,3] > -0.5]
+        self.output_indices_array = self.output_indices_array[self.output_indices_array[:,3] > 0]
         self.dec_index_buff = self.ctx.buffer(self.output_indices_array[:,:3].copy(order="C"))
 
         self.output_tri_verts_array = np.reshape(np.frombuffer(self.output_tri_verts.read(),dtype=np.float32),
                                          newshape=(self.num_clusters,4), order="C")
-        self.output_tri_verts_array = self.output_tri_verts_array[self.output_tri_verts_array[:,3] > -0.5]
+        self.output_tri_verts_array = self.output_tri_verts_array[self.output_tri_verts_array[:,3] > 0]
         self.dec_tri_vert_buff = self.ctx.buffer(self.output_tri_verts_array[:,:3].copy(order="C"))
         
 
@@ -679,20 +701,58 @@ class DecimationWindow(BasicWindow):
 
     def debug_dump(self):
         print("-------DEBUG VALUES------")
+        print("Resolution=",self.resolution)
+        print("First Pass:")
+        cluster_map_output = np.frombuffer(self.cluster_quadric_map_int.read(), dtype=np.int32) / self.float_to_int_scaling_factor
+        cluster_map_output = np.reshape(np.array(cluster_map_output,dtype=np.float32,order="F"), newshape=(self.num_clusters, 14),order="F")
+        print("    Cluster map output:", len(cluster_map_output), "clusters...")
+        #print(cluster_map_output)
+        
+        avg_vertices = np.empty(shape=(1,3),dtype=np.float32,order="F")
+        for i in range(len(cluster_map_output)):
+            if cluster_map_output[i,3] > 0.1:
+                avg_vertices = np.concatenate((avg_vertices, np.ndarray(shape=(1,3),
+                                    buffer=np.array([cluster_map_output[i,j]/cluster_map_output[i,3] for j in range(3)]),
+                                    dtype=np.float32,order="F")))
+        avg_vertices = avg_vertices[1:]
+
+        print("    Valid Clusters:")
+
+        print("\t",str(avg_vertices).replace("\n","\n\t").replace("[[","[").replace("]]","]"))
+        
+        print("Second Pass:")
+        print(np.frombuffer(self.cluster_vertex_positions.read(), dtype=np.float32) )
+        print("    Valid Optimal Vertex Output:")
+
+        sp_avg_vertices = np.frombuffer(self.cluster_vertex_positions.read(), dtype=np.float32) 
+        sp_avg_vertices = np.reshape(np.array(sp_avg_vertices,dtype=np.float32,order="C"), newshape=(self.num_clusters, 4), order="C")
+        sp_avg_vertices = sp_avg_vertices[sp_avg_vertices[:,3] > 0]
+        print("\t", str(sp_avg_vertices).replace("\n","\n\t").replace("[[","[").replace("]]","]"))
+
+
+
         #debug_output_indices = np.reshape(np.frombuffer(self.dec_index_buff.read(),dtype=np.int32),
         #        newshape=(len(self.indices), 3))
-        print("Output Indices: Num=",len(self.output_indices_array))
+        '''print("Output Indices: Num=",len(self.output_indices_array))
+        ind = self.output_indices_array
+        print("Bad indices:",len(ind[ind[:,0] < -0.5]))
         print(self.output_indices_array[:5])
         #debug_output_vertices_array = np.reshape(np.frombuffer(self.dec_vert_buff.read(),dtype=np.float32),
          #       newshape=(self.num_clusters, 3))
         print(self.output_vertices_array[:20])
-        valid_verts = self.output_vertices_array[self.output_vertices_array[:,0] > -1]
+        valid_verts = self.output_vertices_array[self.output_vertices_array[:,0] > -0.5]
         print("Output Vertices: Num=",len(valid_verts))
         print(valid_verts[:20])
 
-        print("Chosen Vertices:")
-        vertices = self.output_vertices_array[self.output_indices_array.flatten()]
-        print(vertices[vertices[:,0] < 0])
+        print("Chosen Vertices:",end="")
+        included_indices = np.unique(self.output_indices_array.flatten())
+        vertices = self.output_vertices_array[included_indices]
+        print(len(vertices[vertices[:,0] > -0.5]))
+        print("Accidentally included verts:",end="")
+        print(len(vertices[vertices[:,0] < -0.5]))
+        print(vertices[vertices[:,0] < -0.5])
+        '''
+
 
 
     def key_event(self, key, action, modifiers):
@@ -707,17 +767,19 @@ class DecimationWindow(BasicWindow):
                 else:
                     self.is_decimated = not self.is_decimated
                     self.set_vertex_array_object()
+                    print("Showing Decimated Mesh:",self.is_decimated)
 
             if key == self.wnd.keys.R and not modifiers.ctrl:
+                result = False
                 if not modifiers.shift:
-                    self.increment_resolution()
+                    result = self.increment_resolution()
                 else:
-                    self.decrement_resolution()
+                    result = self.decrement_resolution()
 
-                self.decimate_mesh()
-                if self.debug:
-                    self.debug_dump()
-                self.set_vertex_array_object()
+                if result:
+                    if self.debug:
+                        self.debug_dump()
+                    self.set_vertex_array_object()
 
 
             '''
