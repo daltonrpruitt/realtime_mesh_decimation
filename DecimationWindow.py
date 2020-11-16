@@ -455,6 +455,7 @@ class DecimationWindow(BasicWindow):
         self.back_color = (0.3, 0.5, 0.8, 1) #(1,1,1, 1)
         self.is_decimated = False
         self.debug = False
+        self.use_avg_vertices = False
         self.indexed_output = True
 
         self.vertices, self.indices = load_model("link")
@@ -629,6 +630,7 @@ class DecimationWindow(BasicWindow):
         self.compute_prog1['debug'].value  = False
 
         self.compute_prog2['float_to_int_scaling_factor'].value  =  self.float_to_int_scaling_factor
+        self.compute_prog2['use_avg'].value  =  self.use_avg_vertices
 
         self.compute_prog3['resolution'] = self.resolution
 
@@ -690,12 +692,12 @@ class DecimationWindow(BasicWindow):
 
     def set_vertex_array_object(self):
         if self.is_decimated:
-            if self.indexed_output:
-                self.current_tri_vao = self.tri_vao_decimated
-                self.current_line_vao = self.line_vao_decimated
-            else:
-                self.current_tri_vao = self.tri_only_vao_decimated
-                self.current_line_vao = self.tri_only_line_vao_decimated
+            #if self.indexed_output:
+            self.current_tri_vao = self.tri_vao_decimated
+            self.current_line_vao = self.line_vao_decimated
+            # else:
+            #     self.current_tri_vao = self.tri_only_vao_decimated
+            #     self.current_line_vao = self.tri_only_line_vao_decimated
         else:                    
             self.current_tri_vao = self.tri_vao_base
             self.current_line_vao = self.line_vao_base
@@ -782,6 +784,13 @@ class DecimationWindow(BasicWindow):
                     if self.debug:
                         self.debug_dump()
                     self.set_vertex_array_object()
+
+            if key == self.wnd.keys.A:
+                self.use_avg_vertices = not self.use_avg_vertices
+                self.decimate_mesh()
+                self.set_vertex_array_object()
+
+                print("Using average vertices in 2nd pass:",self.use_avg_vertices)
 
 
             '''
