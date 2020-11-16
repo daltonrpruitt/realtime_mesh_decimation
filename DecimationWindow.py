@@ -457,7 +457,7 @@ class DecimationWindow(BasicWindow):
         self.debug = False
         self.indexed_output = True
 
-        self.vertices, self.indices = load_model("amphora")
+        self.vertices, self.indices = load_model("link")
         print(self.vertices.shape)
         self.bbox = utility.bounding_box(points=self.vertices[:,:3])
 
@@ -671,6 +671,7 @@ class DecimationWindow(BasicWindow):
             self.dec_index_buff
         )
 
+        '''
         self.tri_only_vao_decimated = self.ctx.vertex_array(
             self.tri_prog, 
             [
@@ -684,6 +685,7 @@ class DecimationWindow(BasicWindow):
                 (self.dec_tri_vert_buff, '3f', 'inVert'),
             ],
         )
+        '''
 
 
     def set_vertex_array_object(self):
