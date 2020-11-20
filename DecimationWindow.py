@@ -174,6 +174,22 @@ def load_model(model="link"):
         indices = np.array(obj_mesh.mesh_list[0].faces,dtype=np.int32)
         vertices = np.array(utility.positive_vertices(obj_mesh.vertices),dtype="f4")
 
+    elif model == "bunny":
+        st = time.time()
+        obj_mesh = pywavefront.Wavefront("meshes/meshes_for_graphics/bunny_lo_poly.obj", collect_faces=True)
+        print("Loading mesh took {:.2f} s".format(time.time()-st))
+
+        indices = np.array(obj_mesh.mesh_list[0].faces,dtype=np.int32)
+        vertices = np.array(utility.positive_vertices(obj_mesh.vertices),dtype="f4")
+    
+    elif model == "teapot":
+        st = time.time()
+        obj_mesh = pywavefront.Wavefront("meshes/meshes_for_graphics/teapot_ascii_normals_uv.obj", collect_faces=True)
+        print("Loading mesh took {:.2f} s".format(time.time()-st))
+
+        indices = np.array(obj_mesh.mesh_list[0].faces,dtype=np.int32)
+        vertices = np.array(utility.positive_vertices(obj_mesh.vertices),dtype="f4")
+
     elif model == "box" :
         box_model = box.Box()
         vertices = np.array(utility.positive_vertices(box_model.vertices), dtype=np.float32)
@@ -431,13 +447,15 @@ if False:
 ''' 
 TODO: 
     X 1. Add shading to model in shaders (get normals in geometry shader)
-    2. Make updates in real-time (resolution is user-controlled via keys)
+    X 2. Make updates in real-time (resolution is user-controlled via keys)
     3. Fix Line Looping issue
-    4. More meshes to choose from 
-        a. In real time via keys?
+    X 4. More meshes to choose from 
+       () a. In real time via keys?
     5. Make timer more precise (time.time_ns())
         (and perform average execution time for real-time calcs???)
-    6. Get actual output tri/vert count 
+    
+    X? did percentage
+        6. Get actual output tri/vert count 
         (basically take the output buffers and get # of non-errored lines)
     ...?. Look into the issue with resolution > 25 (maybe  1D array memory size limitations?)
 
@@ -456,9 +474,14 @@ class DecimationWindow(BasicWindow):
         self.is_decimated = False
         self.debug = False
         self.use_avg_vertices = False
+        self.show_lines = False
         self.indexed_output = True
+        self.is_animated = False
+        self.x_angle = 0
+        self.model_matrix = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=(-np.pi/4,  np.pi/4 ,  0 )).ravel())
 
         self.vertices, self.indices = load_model("link")
+        print("Base Mesh: Vertices="+"{:d}".format(len(self.vertices))+" Triangles="+"{:d}".format(len(self.indices)))
         print(self.vertices.shape)
         self.bbox = utility.bounding_box(points=self.vertices[:,:3])
 
@@ -479,7 +502,7 @@ class DecimationWindow(BasicWindow):
         self.tri_prog['model'].value = tuple(transf.compose_matrix(angles=(0, np.pi*5/4, 0)).ravel())# (np.pi/4, np.pi/4, 0)).ravel())
         self.tri_prog['view'].value = tuple(transf.identity_matrix().ravel())
         self.tri_prog['proj'].value = tuple(transf.identity_matrix().ravel()) 
-        self.tri_prog["in_color"].value = (0.0, 0.9, 0.3, 1.0)
+        self.tri_prog["in_color"].value = (0.9, 0.9, 0.3, 1.0)
 
         self.line_prog["bbox.min"] = self.bbox[0]
         self.line_prog["bbox.max"] = self.bbox[1]
@@ -636,9 +659,11 @@ class DecimationWindow(BasicWindow):
 
         # Run programs
         self.compute_prog1.run(self.num_clusters, 1, 1)
-        print(np.frombuffer(self.cluster_vertex_positions.read(),dtype=np.float32)) # These print statements, for some reason, seem to be really important for timing reasons
+        self.ctx.finish()
+        #print(np.frombuffer(self.cluster_vertex_positions.read(),dtype=np.float32)) # These print statements, for some reason, seem to be really important for timing reasons
         self.compute_prog2.run(self.num_clusters, 1, 1)
-        print(np.frombuffer(self.cluster_vertex_positions.read(),dtype=np.float32)) # These print statements, for some reason, seem to be really important for timing reasons
+        self.ctx.finish()
+        #print(np.frombuffer(self.cluster_vertex_positions.read(),dtype=np.float32)) # These print statements, for some reason, seem to be really important for timing reasons
         self.compute_prog3.run(len(self.indices), 1, 1)
 
         # Need the simplified positions and the indices into those vertices
@@ -656,7 +681,11 @@ class DecimationWindow(BasicWindow):
         self.output_tri_verts_array = self.output_tri_verts_array[self.output_tri_verts_array[:,3] > 0]
         self.dec_tri_vert_buff = self.ctx.buffer(self.output_tri_verts_array[:,:3].copy(order="C"))
         
+        print("Decimated Mesh: Vertices=" + "{:d}".format(len(self.output_vertices_array[self.output_vertices_array[:,0] > -0.5])) +
+                                 " Triangles=" + "{:d}".format(len(self.output_indices_array)))
 
+        print("% decimated: Vertices=" + "{:.1f}".format(100*(1.0-len(self.output_vertices_array[self.output_vertices_array[:,0] > -0.5])/len(self.vertices))) +
+                                 " Triangles=" + "{:.1f}".format(100*(1.0-len(self.output_indices_array)/len(self.indices))))
         self.tri_vao_decimated = self.ctx.vertex_array(
             self.tri_prog, 
             [
@@ -696,7 +725,7 @@ class DecimationWindow(BasicWindow):
             self.current_tri_vao = self.tri_vao_decimated
             self.current_line_vao = self.line_vao_decimated
             # else:
-            #     self.current_tri_vao = self.tri_only_vao_decimated
+            #     self.current`_tri_vao = self.tri_only_vao_decimated
             #     self.current_line_vao = self.tri_only_line_vao_decimated
         else:                    
             self.current_tri_vao = self.tri_vao_base
@@ -792,6 +821,18 @@ class DecimationWindow(BasicWindow):
 
                 print("Using average vertices in 2nd pass:",self.use_avg_vertices)
 
+            if key == self.wnd.keys.L:
+                self.show_lines = not self.show_lines # no print; can see
+
+            if key == self.wnd.keys.Z:
+                self.is_animated = not self.is_animated
+
+            if key == self.wnd.keys.X:
+                if not modifiers.shift:
+                    self.x_angle += np.pi / 12
+                else:
+                    self.x_angle -= np.pi / 12
+    
 
             '''
                 if self.prog['sphere.glossiness'].value < 1 :
@@ -810,12 +851,15 @@ class DecimationWindow(BasicWindow):
         self.ctx.enable(moderngl.DEPTH_TEST)
         self.ctx.front_face = 'cw'
         self.ctx.clear(bc[0],bc[1],bc[2],bc[3],)
+        
         self.current_tri_vao.render(mode=moderngl.TRIANGLES)
-        self.current_line_vao.render(mode=moderngl.LINE_LOOP)
-        self.tri_prog['model'].value = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=(0, run_time * np.pi/4 ,  0 )).ravel())
-        self.line_prog['model'].value = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=(0, run_time * np.pi/4 ,  0 )).ravel())
-
-
+        if self.show_lines:
+            self.current_line_vao.render(mode=moderngl.LINE_LOOP)
+        
+        if self.is_animated:
+            self.model_matrix = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=(self.x_angle, run_time * np.pi/4 ,  0 )).ravel())
+            self.tri_prog['model'].value = self.model_matrix
+            self.line_prog['model'].value = self.model_matrix
 
 if __name__ == '__main__':
     DecimationWindow.run()
