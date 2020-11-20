@@ -474,6 +474,7 @@ class DecimationWindow(BasicWindow):
         self.is_decimated = False
         self.debug = False
         self.use_avg_vertices = False
+        self.use_face_area_correction = False
         self.show_lines = False
         self.indexed_output = True
         self.is_animated = False
@@ -651,20 +652,23 @@ class DecimationWindow(BasicWindow):
         self.compute_prog1['resolution'].value = self.resolution
         self.compute_prog1['float_to_int_scaling_factor'].value  =  self.float_to_int_scaling_factor
         self.compute_prog1['debug'].value  = False
+        self.compute_prog1['face_area_correction'].value = self.use_face_area_correction 
+
 
         self.compute_prog2['float_to_int_scaling_factor'].value  =  self.float_to_int_scaling_factor
         self.compute_prog2['use_avg'].value  =  self.use_avg_vertices
 
         self.compute_prog3['resolution'] = self.resolution
 
-        # Run programs
+        # Run programs ... and wait for them to finish completely...
         self.compute_prog1.run(self.num_clusters, 1, 1)
         self.ctx.finish()
-        #print(np.frombuffer(self.cluster_vertex_positions.read(),dtype=np.float32)) # These print statements, for some reason, seem to be really important for timing reasons
+
         self.compute_prog2.run(self.num_clusters, 1, 1)
         self.ctx.finish()
-        #print(np.frombuffer(self.cluster_vertex_positions.read(),dtype=np.float32)) # These print statements, for some reason, seem to be really important for timing reasons
+
         self.compute_prog3.run(len(self.indices), 1, 1)
+        self.ctx.finish()
 
         # Need the simplified positions and the indices into those vertices
         self.output_vertices_array = np.reshape(np.frombuffer(self.cluster_vertex_positions.read(),dtype=np.float32),
@@ -764,30 +768,6 @@ class DecimationWindow(BasicWindow):
 
 
 
-        #debug_output_indices = np.reshape(np.frombuffer(self.dec_index_buff.read(),dtype=np.int32),
-        #        newshape=(len(self.indices), 3))
-        '''print("Output Indices: Num=",len(self.output_indices_array))
-        ind = self.output_indices_array
-        print("Bad indices:",len(ind[ind[:,0] < -0.5]))
-        print(self.output_indices_array[:5])
-        #debug_output_vertices_array = np.reshape(np.frombuffer(self.dec_vert_buff.read(),dtype=np.float32),
-         #       newshape=(self.num_clusters, 3))
-        print(self.output_vertices_array[:20])
-        valid_verts = self.output_vertices_array[self.output_vertices_array[:,0] > -0.5]
-        print("Output Vertices: Num=",len(valid_verts))
-        print(valid_verts[:20])
-
-        print("Chosen Vertices:",end="")
-        included_indices = np.unique(self.output_indices_array.flatten())
-        vertices = self.output_vertices_array[included_indices]
-        print(len(vertices[vertices[:,0] > -0.5]))
-        print("Accidentally included verts:",end="")
-        print(len(vertices[vertices[:,0] < -0.5]))
-        print(vertices[vertices[:,0] < -0.5])
-        '''
-
-
-
     def key_event(self, key, action, modifiers):
         
         # Key presses
@@ -820,6 +800,13 @@ class DecimationWindow(BasicWindow):
                 self.set_vertex_array_object()
 
                 print("Using average vertices in 2nd pass:",self.use_avg_vertices)
+            
+            if key == self.wnd.keys.F:
+                self.use_face_area_correction = not self.use_face_area_correction
+                self.decimate_mesh()
+                self.set_vertex_array_object()
+
+                print("Using face area correction in 1st pass:",self.use_face_area_correction)
 
             if key == self.wnd.keys.L:
                 self.show_lines = not self.show_lines # no print; can see
@@ -832,14 +819,6 @@ class DecimationWindow(BasicWindow):
                     self.x_angle += np.pi / 12
                 else:
                     self.x_angle -= np.pi / 12
-    
-
-            '''
-                if self.prog['sphere.glossiness'].value < 1 :
-                    self.prog['sphere.glossiness'].value += 0.1
-                print("Sphere glossiness:", self.prog['sphere.glossiness'].value)
-            '''
-
 
         # Key releases
         elif action == self.wnd.keys.ACTION_RELEASE:
@@ -849,7 +828,7 @@ class DecimationWindow(BasicWindow):
         bc = self.back_color
         self.ctx.enable(moderngl.CULL_FACE)
         self.ctx.enable(moderngl.DEPTH_TEST)
-        self.ctx.front_face = 'cw'
+        self.ctx.front_face = 'cw' # I do not currently know why everything is clockwise, but ¯\_(ツ)_/¯ 
         self.ctx.clear(bc[0],bc[1],bc[2],bc[3],)
         
         self.current_tri_vao.render(mode=moderngl.TRIANGLES)
@@ -857,7 +836,7 @@ class DecimationWindow(BasicWindow):
             self.current_line_vao.render(mode=moderngl.LINE_LOOP)
         
         if self.is_animated:
-            self.model_matrix = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=(self.x_angle, run_time * np.pi/4 ,  0 )).ravel())
+            self.model_matrix = tuple(transf.compose_matrix(scale=(1., 1., 1.),angles=(self.x_angle, run_time * np.pi/4 ,  0 )).ravel())
             self.tri_prog['model'].value = self.model_matrix
             self.line_prog['model'].value = self.model_matrix
 

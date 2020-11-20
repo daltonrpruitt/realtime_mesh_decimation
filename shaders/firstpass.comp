@@ -35,6 +35,7 @@ layout(r32i, binding = 3) uniform iimage2D cluster_quadric_map;
 uniform float float_to_int_scaling_factor;
 uniform int resolution;
 uint u_resolution = uint(resolution);
+uniform bool face_area_correction;
 uniform bool debug;
 
 void main() {
@@ -91,8 +92,16 @@ void main() {
         vec3 verts[3] = {vertices[idxs[0]].xyz, vertices[idxs[1]].xyz, vertices[idxs[2]].xyz};
 
         // Compute quadric for plane
-        vec3 normal = normalize(cross(verts[1]-verts[0], verts[2]-verts[0]));
+        vec3 cross_prod = cross(verts[1]-verts[0], verts[2]-verts[0]);
+
+        float area = 1.0; // default value
+        if (face_area_correction){
+            area = 0.5 * length(cross_prod); // From http://geomalgorithms.com/a01-_area.html
+        }
+
+        vec3 normal = normalize(cross_prod);
         float d = -dot(verts[0], normal);
+
 
         // Quadric Matrix Components
         /*Layout of the data for each cell (all sums)
@@ -103,16 +112,18 @@ void main() {
         *  Currently represented with a N x 14 array
         */
 
-        int a2 = int(normal.x * normal.x * float_to_int_scaling_factor);    // 4
-        int ab = int(normal.x * normal.y * float_to_int_scaling_factor);    // 5
-        int ac = int(normal.x * normal.z * float_to_int_scaling_factor);    // 6
-        int ad = int(normal.x * d        * float_to_int_scaling_factor);    // 7
-        int b2 = int(normal.y * normal.y * float_to_int_scaling_factor);    // 8
-        int bc = int(normal.y * normal.z * float_to_int_scaling_factor);    // 9
-        int bd = int(normal.y * d        * float_to_int_scaling_factor);    // 10
-        int c2 = int(normal.z * normal.z * float_to_int_scaling_factor);    // 11
-        int cd = int(normal.z * d        * float_to_int_scaling_factor);    // 12
-        int d2 = int(d        * d        * float_to_int_scaling_factor);    // 13
+    
+
+        int a2 = int(area * normal.x * normal.x * float_to_int_scaling_factor);    // 4
+        int ab = int(area * normal.x * normal.y * float_to_int_scaling_factor);    // 5
+        int ac = int(area * normal.x * normal.z * float_to_int_scaling_factor);    // 6
+        int ad = int(area * normal.x * d        * float_to_int_scaling_factor);    // 7
+        int b2 = int(area * normal.y * normal.y * float_to_int_scaling_factor);    // 8
+        int bc = int(area * normal.y * normal.z * float_to_int_scaling_factor);    // 9
+        int bd = int(area * normal.y * d        * float_to_int_scaling_factor);    // 10
+        int c2 = int(area * normal.z * normal.z * float_to_int_scaling_factor);    // 11
+        int cd = int(area * normal.z * d        * float_to_int_scaling_factor);    // 12
+        int d2 = int(area * d        * d        * float_to_int_scaling_factor);    // 13
 
 
         if (debug) {
