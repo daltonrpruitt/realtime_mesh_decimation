@@ -13,7 +13,7 @@ layout(local_size_x=1, local_size_y=1, local_size_z=1) in;
 layout(r32i, binding = 3) uniform iimage2D cluster_quadric_map;
 layout(rgba32f, binding = 4) uniform image2D cluster_vertex_position;
 
-float determinant_minimum = 1.0E-4;
+float determinant_minimum = 1.0E-3;
 uniform float float_to_int_scaling_factor;
 uniform bool use_avg; 
 //uniform int resolution;
@@ -61,7 +61,7 @@ void main() {
     vec3 cluster_vert;
 
     // Check if "singular" (determinant < determinant_minimum)
-    if ( determinant(error_quadric) < determinant_minimum || use_avg) {  //true) {  
+    if ( abs(determinant(error_quadric)) < determinant_minimum || use_avg) {  //true) {  
     
         // Use avg vertex position if so
         float sum_x = float(imageLoad(cluster_quadric_map, ivec2(output_x, 0))) / float_to_int_scaling_factor ;    // 0
