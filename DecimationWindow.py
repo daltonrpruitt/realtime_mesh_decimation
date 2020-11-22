@@ -119,7 +119,7 @@ class DecimationWindow(BasicWindow):
         self.indexed_output = True
         self.is_animated = False
         self.x_angle = 0
-        self.model_matrix = tuple(transf.compose_matrix(scale=(0.7, 0.7, 0.7),angles=(-np.pi/4,  np.pi/4 ,  0 )).ravel())
+        self.model_matrix = tuple(transf.compose_matrix(scale=(1, 1, 1),angles=(0,  np.pi/1 ,  0 )).ravel())
 
         self.vertices, self.indices = load_model("link")
         print("Base Mesh: Vertices="+"{:d}".format(len(self.vertices))+" Triangles="+"{:d}".format(len(self.indices)))
@@ -140,14 +140,14 @@ class DecimationWindow(BasicWindow):
         
         self.tri_prog["bbox.min"] = self.bbox[0]
         self.tri_prog["bbox.max"] = self.bbox[1]
-        self.tri_prog['model'].value = tuple(transf.compose_matrix(angles=(0, np.pi*5/4, 0)).ravel())# (np.pi/4, np.pi/4, 0)).ravel())
+        self.tri_prog['model'].value = self.model_matrix# (np.pi/4, np.pi/4, 0)).ravel())
         self.tri_prog['view'].value = tuple(transf.identity_matrix().ravel())
         self.tri_prog['proj'].value = tuple(transf.identity_matrix().ravel()) 
         self.tri_prog["in_color"].value = (0.9, 0.9, 0.3, 1.0)
 
         self.line_prog["bbox.min"] = self.bbox[0]
         self.line_prog["bbox.max"] = self.bbox[1]
-        self.line_prog['model'].value = tuple(transf.compose_matrix(angles=(np.pi/4, np.pi/4, 0)).ravel())
+        self.line_prog['model'].value = self.model_matrix
         self.line_prog['view'].value = tuple(transf.identity_matrix().ravel())
         self.line_prog['proj'].value = tuple(transf.identity_matrix().ravel()) 
         self.line_prog["in_color"].value = (0.7, 0.2, 0.3, 1.0)
