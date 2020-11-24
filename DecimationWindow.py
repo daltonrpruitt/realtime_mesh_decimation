@@ -300,15 +300,26 @@ class DecimationWindow(BasicWindow):
 
         self.compute_prog3['resolution'] = self.resolution
 
+        start_time = time.time()
+
         # Run programs ... and wait for them to finish completely...
         self.compute_prog1.run(self.num_clusters, 1, 1)
         self.ctx.finish()
+        fp_time = time.time()
 
         self.compute_prog2.run(self.num_clusters, 1, 1)
         self.ctx.finish()
+        sp_time = time.time()
 
         self.compute_prog3.run(len(self.indices), 1, 1)
         self.ctx.finish()
+        tp_time = time.time()
+
+        print("Time to complete passes:")
+        print("\tFirst Pass:","{:.8f} ms".format((fp_time - start_time)*10**3))
+        print("\tSecond Pass:","{:.8f} ms".format((sp_time - fp_time)*10**3))
+        print("\tThird Pass:","{:.8f} ms".format((tp_time - sp_time)*10**3))
+
 
         # Need the simplified positions and the indices into those vertices
         self.output_vertices_array = np.reshape(np.frombuffer(self.cluster_vertex_positions.read(),dtype=np.float32),
