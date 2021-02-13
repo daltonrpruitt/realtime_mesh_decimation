@@ -183,7 +183,7 @@ class DecimationWindow(BasicWindow):
             "Y": 1, 
             "Z": 1
         }
-        self.resolution = 25
+        self.resolution = 10
         self.num_clusters = self.resolution**3
         self.float_to_int_scaling_factor = 2**13
         self.image_shape = (self.num_clusters, 14)
@@ -303,7 +303,9 @@ class DecimationWindow(BasicWindow):
         start_time = time.time()
 
         # Run programs ... and wait for them to finish completely...
-        self.compute_prog1.run(self.num_clusters, 1, 1)
+        #print("Indicies Size: ",self.indices.shape[0])
+        
+        self.compute_prog1.run(self.indices.shape[0], 1, 1)
         self.ctx.finish()
         fp_time = time.time()
 
